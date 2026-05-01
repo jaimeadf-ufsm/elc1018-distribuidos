@@ -110,13 +110,16 @@ public class ChatServer {
             boolean success = room.connect(request.getUsername(), serverObserver);
 
             if (!success)
-                responseObserver.onError(Status.UNAUTHENTICATED.asRuntimeException());
+                responseObserver.onError(Status.INTERNAL.asRuntimeException());
         }
     }
 
     public static class ChatRoom
     {
         public static final String SYSTEM_USERNAME = "sistema";
+
+        public static final int MAX_CONCURRENT_CONNECTIONS = 1;
+        public static boolean UNREGISTER_ON_DISCONNECT = true;
 
         private final List<ChatMessage> history;
         private final HashMap<String, UserChannel> users;
@@ -126,26 +129,55 @@ public class ChatServer {
             this.users = new HashMap<>();
         }
 
-        public synchronized boolean register(String username)
-        {
-            if (this.isRegistered(username)) {
+        public synchronized boolean register(String username) {
+            if (isSystem(username)) {
+                System.err.printf("[AVISO] O usuário \"%s\" não pode ser registrado%n", username);
+                return false;
+            }
+
+            if (isRegistered(username)) {
                 System.err.printf("[AVISO] O usuário \"%s\" já está registrado%n", username);
                 return false;
             }
 
-            System.err.printf("[INFO] O usuário \"%s\" foi registrado com sucesso%n", username);
+            users.put(username, new UserChannel());
 
-            this.users.put(username, new UserChannel(username));
-            this.alert(SystemMessageFactory.formatRegisterMessage(username));
+            System.err.printf("[INFO] O usuário \"%s\" foi registrado com sucesso%n", username);
+            alert(SystemMessageFactory.formatRegisterMessage(username));
 
             return true;
         }
 
+        public synchronized void unregister(String username) {
+            if (isSystem(username)) {
+                System.err.printf("[AVISO] O usuário \"%s\" não pode ser desregistrado%n", username);
+                return;
+            }
+
+            if (!isRegistered(username)) {
+                System.err.printf("[AVISO] O usuário \"%s\" já não está registrado%n", username);
+                return;
+            }
+
+            UserChannel user = users.get(username);
+            user.close();
+
+            users.remove(username);
+
+            System.err.printf("[INFO] O usuário \"%s\" foi desregistrado com sucesso%n", username);
+            alert(SystemMessageFactory.formatUnregisterMessage(username));
+        }
+
         public synchronized boolean connect(String username, ServerCallStreamObserver<ChatMessage> stream) {
-            UserChannel user = this.users.get(username);
+            UserChannel user = users.get(username);
 
             if (user == null) {
-                System.err.printf("[INFO] O usuário \"%s\" tentou conectar sem realizar cadastro%n", username);
+                System.err.printf("[AVISO] O usuário \"%s\" tentou se conectar sem realizar cadastro%n", username);
+                return false;
+            }
+
+            if (user.size() >= MAX_CONCURRENT_CONNECTIONS) {
+                System.err.printf("[AVISO] O usuário \"%s\" já atingiu o limite de conexões simultâneas%n", username);
                 return false;
             }
 
@@ -156,26 +188,29 @@ public class ChatServer {
             }
 
             user.attach(stream);
-            System.err.printf("[INFO] O usuário \"%s\" se conectou (%d conexões ativas)%n", username, user.connections());
+            System.err.printf("[INFO] O usuário \"%s\" se conectou (%d conexões ativas)%n", username, user.size());
 
-            if (user.connections() == 1) {
-                this.alert(SystemMessageFactory.createConnectionMessage(username));
+            if (user.size() == 1) {
+                alert(SystemMessageFactory.createConnectionMessage(username));
             }
 
             return true;
         }
 
         public synchronized void disconnect(String username, StreamObserver<ChatMessage> stream) {
-            UserChannel user = this.users.get(username);
+            UserChannel user = users.get(username);
 
             if (user == null)
                 return;
 
             user.detach(stream);
-            System.err.printf("[INFO] O usuário \"%s\" se desconectou (%d conexões ativas)%n", username, user.connections());
+            System.err.printf("[INFO] O usuário \"%s\" se desconectou (%d conexões ativas)%n", username, user.size());
 
-            if (user.connections() == 0) {
-                this.alert(SystemMessageFactory.createDisconnectionMessage(username));
+            if (user.size() == 0) {
+                alert(SystemMessageFactory.createDisconnectionMessage(username));
+
+                if (UNREGISTER_ON_DISCONNECT)
+                    unregister(username);
             }
         }
 
@@ -192,16 +227,16 @@ public class ChatServer {
                     )
                     .build();
 
-            this.broadcast(message);
+            broadcast(message);
         }
 
         public synchronized boolean broadcast(ChatMessage message) {
-            if (!isRegistered(message.getFrom())) {
+            if (!isSystem(message.getFrom()) && !isRegistered(message.getFrom())) {
                 System.err.printf("[INFO] O usuário \"%s\" não está registrado para enviar mensagens%n", message.getFrom());
                 return false;
             }
 
-            this.history.add(message);
+            history.add(message);
 
             for (UserChannel user : users.values()) {
                 user.send(message);
@@ -212,25 +247,23 @@ public class ChatServer {
             return true;
         }
 
-        public synchronized boolean isRegistered(String username) {
-            if (username.equals(SYSTEM_USERNAME))
-                return true;
+        public synchronized boolean isSystem(String username) {
+            return username.equals(SYSTEM_USERNAME);
+        }
 
+        public synchronized boolean isRegistered(String username) {
             return this.users.containsKey(username);
         }
     }
 
     public static class UserChannel {
-        private final String username;
         private final List<StreamObserver<ChatMessage>> streams;
 
-        public UserChannel(String username) {
-            this.username = username;
+        public UserChannel() {
             this.streams = Collections.synchronizedList(new ArrayList<>());
         }
 
-        public void send(ChatMessage message)
-        {
+        public void send(ChatMessage message) {
             for (StreamObserver<ChatMessage> stream : streams) {
                 stream.onNext(message);
             }
@@ -244,18 +277,24 @@ public class ChatServer {
             this.streams.remove(stream);
         }
 
-        public int connections() {
+        public int size() {
             return this.streams.size();
         }
 
-        public String getUsername() {
-            return username;
+        public void close() {
+            for (StreamObserver<ChatMessage> stream : streams) {
+                stream.onCompleted();
+            }
         }
     }
 
     public static class SystemMessageFactory {
         public static String formatRegisterMessage(String username) {
-            return "O usuário \"%s\" se registrou".formatted(username);
+            return "O usuário \"%s\" foi registrado".formatted(username);
+        }
+
+        public static String formatUnregisterMessage(String username) {
+            return "O usuário \"%s\" foi desregistrado".formatted(username);
         }
 
         public static String createConnectionMessage(String username) {
