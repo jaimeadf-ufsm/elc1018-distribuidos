@@ -39,3 +39,31 @@ protobuf {
 test {
     useJUnitPlatform()
 }
+
+tasks.register('runServer', JavaExec) {
+    group = 'application'
+    description = 'Executa o servidor'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'elc1018.grpc.chat.server.ChatServer'
+
+    if (project.hasProperty('port')) {
+        args(project.property('port').toString())
+    }
+
+    standardInput = System.in
+}
+
+tasks.register('runClient', JavaExec) {
+    group = 'application'
+    description = 'Executa o cliente'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'elc1018.grpc.chat.client.ChatClient'
+
+    def command = (project.findProperty('command') ?: 'register').toString()
+    def host = (project.findProperty('host') ?: 'localhost:50051').toString()
+    def username = (project.findProperty('username') ?: 'user').toString()
+
+    args(command, host, username)
+
+    standardInput = System.in
+}
