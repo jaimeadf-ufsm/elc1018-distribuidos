@@ -39,7 +39,6 @@ public class ChatServer {
         server.start();
         System.out.println("[INFO] O servidor está ouvindo na porta " + server.getPort());
 
-        // Garante que o métod stop() seja chamado se a JVM for encerrada (ex: Ctrl+C)
         Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
     }
 
@@ -68,7 +67,15 @@ public class ChatServer {
     }
 
     public static void main(String[] args) throws InterruptedException, IOException {
-        int port = 50051; // Porta padrão
+        if (args.length > 1) {
+            System.err.println("Uso: ChatServer [porta]");
+            System.err.println();
+            System.err.println("Argumentos:");
+            System.err.println("  porta     A porta em que o servidor roda");
+            return;
+        }
+
+        int port = 50051;  // Porta padrão
 
         if (args.length == 1)
             port = Integer.parseInt(args[0]);
@@ -100,7 +107,7 @@ public class ChatServer {
                     .build();
 
             responseObserver.onNext(response); // Envia a resposta
-            responseObserver.onCompleted();   // Encerra esta chamada específica
+            responseObserver.onCompleted(); // Encerra esta chamada específica
         }
 
         // Operação UNÁRIA: Recebe uma mensagem e confirma o recebimento (Ack)
@@ -134,6 +141,7 @@ public class ChatServer {
     public static class ChatRoom
     {
         public static final String SYSTEM_USERNAME = "sistema";
+
         public static final int MAX_CONCURRENT_CONNECTIONS = 1;
         public static boolean UNREGISTER_ON_DISCONNECT = true;
 
@@ -147,12 +155,21 @@ public class ChatServer {
 
         // synchronized: Garante que apenas uma thread por vez modifique os usuários
         public synchronized boolean register(String username) {
-            if (isSystem(username) || isRegistered(username)) {
+            if (isSystem(username)) {
+                System.err.printf("[AVISO] O usuário \"%s\" não pode ser registrado%n", username);
+                return false;
+            }
+
+            if (isRegistered(username)) {
+                System.err.printf("[AVISO] O usuário \"%s\" já está registrado%n", username);
                 return false;
             }
 
             users.put(username, new UserChannel());
+
+            System.err.printf("[INFO] O usuário \"%s\" foi registrado com sucesso%n", username);
             alert(SystemMessageFactory.formatRegisterMessage(username));
+
             return true;
         }
 
@@ -160,11 +177,22 @@ public class ChatServer {
          * Remove o usuário do sistema e fecha todas as conexões ativas dele.
          */
         public synchronized void unregister(String username) {
-            if (isSystem(username) || !isRegistered(username)) return;
+            if (isSystem(username)) {
+                System.err.printf("[AVISO] O usuário \"%s\" não pode ser desregistrado%n", username);
+                return;
+            }
+
+            if (!isRegistered(username)) {
+                System.err.printf("[AVISO] O usuário \"%s\" já não está registrado%n", username);
+                return;
+            }
 
             UserChannel user = users.get(username);
             user.close(); // Avisa os streams do usuário que acabou
+
             users.remove(username);
+
+            System.err.printf("[INFO] O usuário \"%s\" foi desregistrado com sucesso%n", username);
             alert(SystemMessageFactory.formatUnregisterMessage(username));
         }
 
@@ -174,7 +202,13 @@ public class ChatServer {
         public synchronized boolean connect(String username, ServerCallStreamObserver<ChatMessage> stream) {
             UserChannel user = users.get(username);
 
-            if (user == null || user.size() >= MAX_CONCURRENT_CONNECTIONS) {
+            if (user == null) {
+                System.err.printf("[AVISO] O usuário \"%s\" tentou se conectar sem realizar cadastro%n", username);
+                return false;
+            }
+
+            if (user.size() >= MAX_CONCURRENT_CONNECTIONS) {
+                System.err.printf("[AVISO] O usuário \"%s\" já atingiu o limite de conexões simultâneas%n", username);
                 return false;
             }
 
@@ -188,9 +222,11 @@ public class ChatServer {
 
             // Adiciona o stream à lista de conexões do usuário
             user.attach(stream);
+            System.err.printf("[INFO] O usuário \"%s\" se conectou (%d conexões ativas)%n", username, user.size());
 
-            if (user.size() == 1)
+            if (user.size() == 1) {
                 alert(SystemMessageFactory.createConnectionMessage(username));
+            }
 
             return true;
         }
@@ -200,14 +236,18 @@ public class ChatServer {
          */
         public synchronized void disconnect(String username, StreamObserver<ChatMessage> stream) {
             UserChannel user = users.get(username);
-            if (user == null) return;
+
+            if (user == null)
+                return;
 
             user.detach(stream);
+            System.err.printf("[INFO] O usuário \"%s\" se desconectou (%d conexões ativas)%n", username, user.size());
 
             // Se o usuário não tem mais nenhuma conexão ativa
             // Ex.: Fechou todas as abas
             if (user.size() == 0) {
                 alert(SystemMessageFactory.createDisconnectionMessage(username));
+
                 if (UNREGISTER_ON_DISCONNECT)
                     unregister(username);
             }
@@ -218,14 +258,17 @@ public class ChatServer {
          */
         public synchronized void alert(String content) {
             Instant now = Instant.now();
+
             ChatMessage message = ChatMessage.newBuilder()
                     .setFrom(SYSTEM_USERNAME)
                     .setContent(content)
                     .setTimestamp(Timestamp.newBuilder()
                             .setSeconds(now.getEpochSecond())
                             .setNanos(now.getNano())
-                            .build())
+                            .build()
+                    )
                     .build();
+
             broadcast(message);
         }
 
@@ -234,6 +277,7 @@ public class ChatServer {
          */
         public synchronized boolean broadcast(ChatMessage message) {
             if (!isSystem(message.getFrom()) && !isRegistered(message.getFrom())) {
+                System.err.printf("[INFO] O usuário \"%s\" não está registrado para enviar mensagens%n", message.getFrom());
                 return false;
             }
 
@@ -246,6 +290,7 @@ public class ChatServer {
             }
 
             System.out.println(ChatMessageFormatter.formatChatMessage(message));
+
             return true;
         }
 
@@ -272,7 +317,8 @@ public class ChatServer {
         // Envia a mensagem para todas as conexões abertas deste usuário
         public void send(ChatMessage message) {
             for (StreamObserver<ChatMessage> stream : streams) {
-                stream.onNext(message); // O onNext envia o dado pelo cabo de rede
+                // O onNext envia o dado pelo cabo de rede
+                stream.onNext(message);
             }
         }
 

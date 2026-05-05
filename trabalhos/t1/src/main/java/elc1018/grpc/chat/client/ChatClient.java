@@ -44,7 +44,9 @@ public class ChatClient {
      * Usa o stub bloqueante porque precisamos da resposta para saber se podemos continuar.
      */
     public boolean register() {
-        User user = User.newBuilder().setUsername(username).build();
+        User user = User.newBuilder()
+                .setUsername(username)
+                .build();
 
         try {
             // O programa para aqui até que o servidor responda RegisterResponse
@@ -56,6 +58,7 @@ public class ChatClient {
             }
 
             System.err.printf("[INFO] O usuário \"%s\" foi registrado com sucesso%n", username);
+
             return true;
         } catch (Exception e) {
             System.err.printf("[ERRO] Ocorreu um erro ao registrar o usuário: %s%n", e.getMessage());
@@ -93,10 +96,11 @@ public class ChatClient {
 
                 String content = reader.readLine();
 
-                if (content.isBlank()) continue;
+                if (content.isBlank())
+                    continue;
 
                 if (content.trim().equalsIgnoreCase("/sair"))
-                    break; // Sai do loop para encerrar o programa
+                    break;
 
                 // Envia o texto para o servidor
                 send(content);
@@ -123,7 +127,13 @@ public class ChatClient {
         try {
             // Bloqueia brevemente apenas para confirmar se o servidor recebeu o pacote
             Ack ack = serviceBlockingStub.sendMessage(message);
-            return ack.getSuccess();
+
+            if (!ack.getSuccess()) {
+                System.err.println("[AVISO] O servidor não aceitou a mensagem.");
+                return false;
+            }
+
+            return true;
         } catch (Exception e) {
             System.err.printf("[ERRO] Ocorreu um erro ao enviar uma mensagem: %s%n", e.getMessage());
             return false;
@@ -134,7 +144,9 @@ public class ChatClient {
      * Abre o canal de Streaming para receber mensagens em tempo real.
      */
     public void receive(CountDownLatch disconnectLatch) {
-        User user = User.newBuilder().setUsername(username).build();
+        User user = User.newBuilder()
+                .setUsername(username)
+                .build();
 
         // Aqui usamos o Stub assíncrono
         serviceAsyncStub.receiveMessages(user, new StreamObserver<ChatMessage>() {
@@ -191,9 +203,12 @@ public class ChatClient {
         // Se o comando for 'register', ele registra e já entra na sala
         // Se for 'join', ele tenta entrar direto, pressupondo que o usuário já está registrado
         if (command.equals("register")) {
-            if (client.register()) client.join();
+            if (client.register())
+                client.join();
         } else if (command.equals("join")) {
             client.join();
+        } else {
+            System.err.printf("[ERRO] O comando \"%s\" é inválido%n", command);
         }
 
         client.shutdown();
