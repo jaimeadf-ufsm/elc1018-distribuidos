@@ -14,13 +14,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * ChatClient: O "tradutor" entre o teclado do usuário e a rede gRPC.
+ * Classe que gerencia a comunição de um usuário com o servidor
  */
 public class ChatClient {
     // A conexão física com o servidor
     private final ManagedChannel channel;
 
-    // Stub Assíncrono: Usado para o streaming de mensagens (não trava o programa)
+    // Stub Assíncrono: Usado para o streaming de mensagens
     private final ChatServiceGrpc.ChatServiceStub serviceAsyncStub;
 
     // Stub Bloqueante: Usado para operações que esperam o servidor responder
@@ -64,13 +64,13 @@ public class ChatClient {
     }
 
     /**
-     * O loop principal da interface de usuário.
+     * O loop principal de interação com o usuário.
      */
     public void join() {
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 
-        // CountDownLatch(1): Um cadeado que mantém o programa vivo.
-        // Ele só abre quando alguém chama .countDown().
+        // Cria um cadeado para que a conexão de recebimento de mensagens possa comunicar
+        // quando for encerrada
         CountDownLatch disconnectLatch = new CountDownLatch(1);
 
         System.out.printf("Você foi conectado à sala como \"%s\"%n", username);
@@ -78,15 +78,16 @@ public class ChatClient {
         System.out.println("- Digite \"/sair\" para sair.");
         System.out.println();
 
-        // Dispara a escuta de mensagens em uma thread separada (Assíncrona)
+        // Escuta as mensagens em uma thread separada
         this.receive(disconnectLatch);
 
         try {
-            // Enquanto o cadeado estiver trancado (contagem > 0), o loop continua
+            // Verifica por entrada do usuário enquanto a conexão de recebimento de mensagens
+            // estiver ativa
             while (disconnectLatch.getCount() > 0) {
-                // Checa se há algo digitado sem travar a thread (Non-blocking I/O)
+                // Caso nada foi digitado, descanda a CPU por 0.1s
                 if (System.in.available() == 0) {
-                    Thread.sleep(100); // Descansa a CPU por 0.1s
+                    Thread.sleep(100);
                     continue;
                 }
 
@@ -97,7 +98,8 @@ public class ChatClient {
                 if (content.trim().equalsIgnoreCase("/sair"))
                     break; // Sai do loop para encerrar o programa
 
-                send(content); // Envia o texto para o servidor
+                // Envia o texto para o servidor
+                send(content);
             }
         } catch (Exception e) {
             System.err.printf("[ERRO] Ocorreu um erro ao ler as entradas: %s%n", e.getMessage());
@@ -146,14 +148,18 @@ public class ChatClient {
             public void onError(Throwable t) {
                 // Chamado se a conexão cair ou houver erro no servidor
                 System.err.printf("[ERRO] Ocorreu um erro enquanto esperava por mensagens: %s%n", t.getMessage());
-                disconnectLatch.countDown(); // Abre o cadeado para encerrar o programa
+
+                // Abre o cadeado para encerrar o programa
+                disconnectLatch.countDown();
             }
 
             @Override
             public void onCompleted() {
                 // Chamado se o servidor fechar o stream educadamente
                 System.err.println("[INFO] O recebimento de mensagens foi encerrado pelo servidor");
-                disconnectLatch.countDown(); // Abre o cadeado para encerrar o programa
+
+                // Abre o cadeado para encerrar o programa
+                disconnectLatch.countDown();
             }
         });
     }
@@ -182,8 +188,8 @@ public class ChatClient {
 
         ChatClient client = new ChatClient(target, username);
 
-        // Se o comando for 'register', ele registra e já entra na sala (join)
-        // Se for 'join', ele tenta entrar direto (pressupõe que já está registrado)
+        // Se o comando for 'register', ele registra e já entra na sala
+        // Se for 'join', ele tenta entrar direto, pressupondo que o usuário já está registrado
         if (command.equals("register")) {
             if (client.register()) client.join();
         } else if (command.equals("join")) {

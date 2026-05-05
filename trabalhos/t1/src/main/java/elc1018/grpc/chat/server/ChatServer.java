@@ -18,11 +18,11 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Classe principal que orquestra o servidor gRPC.
+ * Classe que gerencia o servidor gRPC.
  */
 public class ChatServer {
-    private final ChatRoom room; // Instância da sala de chat (lógica de negócio)
-    private final Server server; // Instância do servidor gRPC (infraestrutura)
+    private final ChatRoom room; // Instância da sala de chat
+    private final Server server; // Instância do servidor gRPC
 
     public ChatServer(int port) {
         this.room = new ChatRoom();
@@ -44,7 +44,7 @@ public class ChatServer {
     }
 
     /**
-     * Finaliza o servidor de forma graciosa (Graceful Shutdown).
+     * Finaliza o servidor de forma graciosa.
      */
     public void stop() {
         try {
@@ -118,7 +118,7 @@ public class ChatServer {
         // Operação SERVER STREAMING: O servidor mantém o canal aberto para enviar mensagens
         @Override
         public void receiveMessages(User request, StreamObserver<ChatMessage> responseObserver) {
-            // - Duv: para que serve esse cast?
+            // Realiza o casting da stream para poder interagir com os eventos de cancelamento
             ServerCallStreamObserver<ChatMessage> serverObserver = (ServerCallStreamObserver<ChatMessage>) responseObserver;
 
             boolean success = room.connect(request.getUsername(), serverObserver);
@@ -169,7 +169,7 @@ public class ChatServer {
         }
 
         /**
-         * Vincula um stream de rede (gRPC) a um usuário já registrado.
+         * Vincula a stream de mensagens a um usuário.
          */
         public synchronized boolean connect(String username, ServerCallStreamObserver<ChatMessage> stream) {
             UserChannel user = users.get(username);
@@ -178,19 +178,19 @@ public class ChatServer {
                 return false;
             }
 
-            // Callback disparado se o cliente cair ou fechar a conexão abruptamente
+            // Evento disparado se o cliente cair ou fechar a conexão abruptamente
             stream.setOnCancelHandler(() -> disconnect(username, stream));
 
-            // Despeja o histórico de mensagens para o usuário que acabou de conectar
+            // Envia o histórico de mensagens para o usuário que acabou de conectar
             for (ChatMessage message : history) {
                 stream.onNext(message);
             }
 
-            user.attach(stream); // Adiciona o stream à lista de conexões do usuário
+            // Adiciona o stream à lista de conexões do usuário
+            user.attach(stream);
 
-            if (user.size() == 1) {
+            if (user.size() == 1)
                 alert(SystemMessageFactory.createConnectionMessage(username));
-            }
 
             return true;
         }
@@ -204,7 +204,8 @@ public class ChatServer {
 
             user.detach(stream);
 
-            // Se o usuário não tem mais nenhuma conexão ativa (ex: fechou todas as abas)
+            // Se o usuário não tem mais nenhuma conexão ativa
+            // Ex.: Fechou todas as abas
             if (user.size() == 0) {
                 alert(SystemMessageFactory.createDisconnectionMessage(username));
                 if (UNREGISTER_ON_DISCONNECT)
@@ -236,7 +237,8 @@ public class ChatServer {
                 return false;
             }
 
-            history.add(message); // Salva no histórico
+            // Salva a mensagem no histórico
+            history.add(message);
 
             // Itera por todos os usuários e pede para seus canais enviarem a mensagem
             for (UserChannel user : users.values()) {
@@ -257,10 +259,10 @@ public class ChatServer {
     }
 
     /**
-     * Representa as conexões de rede (streams) de um usuário específico.
+     * Representa as conexões (streams) de um usuário específico.
      */
     public static class UserChannel {
-        // Lista para armazenar os observadores gRPC
+        // Lista para armazenar as streams gRPC
         private final List<StreamObserver<ChatMessage>> streams;
 
         public UserChannel() {
@@ -286,7 +288,7 @@ public class ChatServer {
             return this.streams.size();
         }
 
-        // Fecha educadamente todos os canais de rede deste usuário
+        // Fecha todos os canais de rede deste usuário
         public void close() {
             for (StreamObserver<ChatMessage> stream : streams) {
                 stream.onCompleted();
