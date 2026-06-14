@@ -50,6 +50,10 @@ public class CausalMulticast {
         WireMessage msg = new WireMessage(self.getId(), new VectorClock(mc.get(self.getId())), message);
 
         mc.increment(self.getId(), self.getId());
+        eventListener.onMatrixClockUpdated(new MatrixClock(mc));
+
+        onMessageReceived(msg);
+        cliente.deliver(message);
 
         for (Participant participant : participants) {
             if (participant.equals(self)) {
@@ -60,8 +64,6 @@ public class CausalMulticast {
 
             eventListener.onEnvelope(envelope);
         }
-
-        onMessageReceived(msg);
     }
 
     public synchronized void intercept(CausalEventListener listener) {
@@ -94,6 +96,7 @@ public class CausalMulticast {
 
         if (isMessageNewer(message)) {
             mc.update(message.getSender(), message.getVC());
+            eventListener.onMatrixClockUpdated(new MatrixClock(mc));
         }
 
         deliveryBuffer.add(message);
@@ -111,7 +114,7 @@ public class CausalMulticast {
         participants.add(participant);
 
         // Será que eu preciso receber o vetor também pela descoberta?
-        mc.increment(self.getId(), participant.getId());
+        // mc.increment(self.getId(), participant.getId());
 
         // Bloquear entrada de novos membros se eu já tiver recebido mensagens
         // de outros membros?
@@ -140,6 +143,7 @@ public class CausalMulticast {
 
                     if (!this.self.getId().equals(buffered.getSender())) {
                         mc.increment(self.getId(), buffered.getSender());
+                        eventListener.onMatrixClockUpdated(new MatrixClock(mc));
                     }
 
                     try {
@@ -177,13 +181,21 @@ public class CausalMulticast {
     }
     
     private synchronized boolean isMessageDeliverable(WireMessage message) {
+        String theirId = message.getSender();
         VectorClock theirVc = message.getVC();
 
+        if (message.getSequence() - 1 != mc.get(self.getId(), theirId)) {
+            return false;
+        }
+
         for (String id : theirVc.keys()) {
+            if (id.equals(theirId)) {
+                continue;
+            }
+
             // Caso eu não tenha descoberto um outro processo que
             // o remetente já recebeu mensagem, ele terá X e eu terei -1.
             // Portanto, a mensagem não é entregável.
-
             if (theirVc.get(id) > mc.get(self.getId(), id)) {
                 return false;
             }

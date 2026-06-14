@@ -7,6 +7,8 @@ public class CausalEventListener {
         envelope.dispatch();
     }
 
+    public void onMatrixClockUpdated(MatrixClock clock) {}
+
     public void onMessageReceived(WireMessage message) {}
 
     public void onMesssageDelivered(WireMessage message) {}
@@ -14,4 +16,5 @@ public class CausalEventListener {
     public void onMessageDiscarded(WireMessage message) {}
 
     public void onParticipantJoined(Participant participant) {}
+
 }

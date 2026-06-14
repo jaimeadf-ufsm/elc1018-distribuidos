@@ -31,6 +31,12 @@ public class Client implements ICausalMulticast {
             }
 
             @Override
+            public void onMatrixClockUpdated(MatrixClock clock) {
+                System.out.println(formatMatrixClock(clock, "> "));
+                System.out.println();
+            }
+
+            @Override
             public void onMessageReceived(WireMessage message) {
                 System.out.println();
                 System.out.println(formatMessage(message));
@@ -40,11 +46,12 @@ public class Client implements ICausalMulticast {
             @Override
             public void onMesssageDelivered(WireMessage message) {
                 // System.out.printf("entrega     %s\n", shortMessageId(message));
+                System.out.printf("entrega %s \"%s\"\n", shortMessageId(message), message.getContent());
             }
 
             @Override
             public void onMessageDiscarded(WireMessage message) {
-                System.out.printf("descarta    %s\n", shortMessageId(message));
+                System.out.printf("descarta %s \"%s\"\n", shortMessageId(message), message.getContent());
             }
 
             @Override
@@ -127,9 +134,6 @@ public class Client implements ICausalMulticast {
                 for (Integer id : invalidIds) {
                     System.out.printf("transmissão #%d não encontrada\n", id);
                 }
-            } else if (command.equals("/mc")) {
-                System.out.println(formatMatrixClock(middleware.getMatrixClock(), 0));
-                System.out.println();
             } else if (command.equals("/buffer")) {
                 System.out.println(formatMessageBuffer(middleware.getStabilityBuffer()));
                 System.out.println();
@@ -153,8 +157,8 @@ public class Client implements ICausalMulticast {
 
         builder.append(String.format("> mensagem %s:\n", shortMessageId(message)));
         builder.append(String.format(">  remetente: %s\n", shortParticipantId(message.getSender())));
-        builder.append(String.format(">  conteúdo:  %s\n", message.getContent()));
-        builder.append(String.format(">  VC:        %s\n", formatVectorClock(message.getVC())));
+        builder.append(String.format(">  conteúdo:  \"%s\"\n", message.getContent()));
+        builder.append(String.format(">  VC:        %s", formatVectorClock(message.getVC())));
 
         return builder.toString();
     }
@@ -169,22 +173,23 @@ public class Client implements ICausalMulticast {
         return builder.toString();
     }
 
-    private String formatMatrixClock(MatrixClock mc, int indent) {
+    private String formatMatrixClock(MatrixClock mc, String indent) {
         StringBuilder builder = new StringBuilder();
-
         Set<Participant> participants = middleware.getParticipants();
 
-        builder.append(String.format("%8s |", ""));
+        builder.append(String.format("%smatriz relógio:\n", indent));
+
+        builder.append(String.format("%s%8s |", indent, ""));
         for (Participant p : participants) {
             builder.append(String.format("%8s |", shortParticipantId(p)));
         }
 
         for (Participant p : participants) {
             builder.append("\n");
-            builder.append(String.format("%8s |", shortParticipantId(p)));
+            builder.append(String.format("%s%8s |", indent, shortParticipantId(p)));
 
             for (Participant q : participants) {
-                builder.append(String.format("%8d |", mc.get(p.getId(), q.getId())));
+                builder.append(String.format("%8s |", formatClockValue(mc.get(p.getId(), q.getId()))));
             }
         }
 
@@ -197,10 +202,14 @@ public class Client implements ICausalMulticast {
         Set<Participant> participants = middleware.getParticipants();
 
         for (Participant p : participants) {
-            builder.append(String.format("%s=%d ", shortParticipantId(p), vc.get(p.getId())));
+            builder.append(String.format("%s=%s ", shortParticipantId(p), formatClockValue(vc.get(p.getId()))));
         }
     
         return builder.toString();
+    }
+
+    private String formatClockValue(int value) {
+        return value == -1 ? "-" : Integer.toString(value);
     }
 
     private String shortMessageId(WireMessage message) {
