@@ -43,6 +43,11 @@ class WireMessage implements Serializable {
         return bos.toByteArray();
     }
 
+    @Override
+    public String toString() {
+        return senderId + "[" + senderVc.get(senderId) + "]";
+    }
+
     public static WireMessage fromBytes(byte[] data) throws IOException, ClassNotFoundException {
         ByteArrayInputStream bis = new ByteArrayInputStream(data);
 

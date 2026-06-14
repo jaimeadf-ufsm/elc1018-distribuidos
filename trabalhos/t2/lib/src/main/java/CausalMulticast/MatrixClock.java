@@ -10,19 +10,19 @@ class MatrixClock {
         this.matrix = new HashMap<>();
     }
 
-    public VectorClock get(String senderId) {
-        return matrix.getOrDefault(senderId, new VectorClock());
+    public synchronized VectorClock get(String myId) {
+        return matrix.computeIfAbsent(myId, k -> new VectorClock());
     }
 
-    public int get(String senderId, String participantId) {
-        return matrix.getOrDefault(senderId, new VectorClock()).get(participantId);
+    public synchronized int get(String myId, String theirId) {
+        return get(myId).get(theirId);
     }
 
-    public void increment(String senderId, String participantId) {
-        if (!matrix.containsKey(senderId)) {
-            matrix.put(senderId, new VectorClock());
-        }
+    public synchronized void update(String myId, VectorClock theirVc) {
+        matrix.put(myId, theirVc);
+    }
 
-        matrix.get(senderId).increment(participantId);
+    public synchronized void increment(String myId, String theirId) {
+        get(myId).increment(theirId);
     }
 }
