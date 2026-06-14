@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-class VectorClock implements Serializable {
+public class VectorClock implements Serializable {
     private final Map<String, Integer> vector;
 
     public VectorClock() {

@@ -1,9 +1,9 @@
 package CausalMulticast;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 
 public class CausalMulticast {
     private final ICausalMulticast client;
@@ -20,13 +20,13 @@ public class CausalMulticast {
 
     private final DiscoveryService discovery;
 
-    private EventListener eventListener;
+    private CausalEventListener eventListener;
 
     public CausalMulticast(String ip, Integer port, ICausalMulticast client) {
         this.client = client;
 
         this.self = new Participant(ip, port);
-        this.participants = new HashSet<>();
+        this.participants = new TreeSet<>();
         this.participants.add(this.self);
 
         this.mc = new MatrixClock();
@@ -38,7 +38,7 @@ public class CausalMulticast {
 
         this.discovery = new DiscoveryService(self, this::onParticipantDiscovered);
 
-        this.eventListener = null;
+        this.eventListener = new CausalEventListener();
 
         this.mc.increment(self.getId(), self.getId());
 
@@ -49,20 +49,22 @@ public class CausalMulticast {
     public synchronized void mcsend(String message, ICausalMulticast cliente) {
         WireMessage msg = new WireMessage(self.getId(), new VectorClock(mc.get(self.getId())), message);
 
+        mc.increment(self.getId(), self.getId());
+
         for (Participant participant : participants) {
+            if (participant.equals(self)) {
+                continue;
+            }
+
             Envelope envelope = new Envelope(participant, msg, this::onEnvelopeDispatched);
 
-            if (eventListener != null) {
-                eventListener.onEnvelope(envelope);
-            } else {
-                envelope.dispatch();
-            }
+            eventListener.onEnvelope(envelope);
         }
 
-        mc.increment(self.getId(), self.getId());
+        onMessageReceived(msg);
     }
 
-    public synchronized void intercept(EventListener listener) {
+    public synchronized void intercept(CausalEventListener listener) {
         this.eventListener = listener;
     }
     
@@ -71,12 +73,28 @@ public class CausalMulticast {
         discovery.stop();
     }
 
-    private synchronized void onMessageReceived(WireMessage message) {
-        if (isMessageNewer(message)) {
-            mc.update(message.getSenderId(), message.getSenderClock());
-        }
+    public synchronized Participant getSelf() {
+        return self;
+    }
 
-        System.err.printf("[INFO] mensagem %s recebida.\n", message);
+    public synchronized Set<Participant> getParticipants() {
+        return new TreeSet<>(participants);
+    }
+
+    public synchronized MatrixClock getMatrixClock() {
+        return new MatrixClock(mc);
+    }
+
+    public synchronized List<WireMessage> getStabilityBuffer() {
+        return new ArrayList<>(stabilityBuffer);
+    }
+
+    private synchronized void onMessageReceived(WireMessage message) {
+        eventListener.onMessageReceived(message);
+
+        if (isMessageNewer(message)) {
+            mc.update(message.getSender(), message.getVC());
+        }
 
         deliveryBuffer.add(message);
         stabilityBuffer.add(message);
@@ -99,7 +117,7 @@ public class CausalMulticast {
         // de outros membros?
         // As mensagens terão já sido descartadas.
 
-        System.err.printf("[INFO] processo %s descoberto.\n", participant);
+        eventListener.onParticipantJoined(participant);
     }
 
     private synchronized void onEnvelopeDispatched(Envelope envelope) {
@@ -120,8 +138,8 @@ public class CausalMulticast {
                 if (isMessageDeliverable(buffered)) {
                     toRemove.add(buffered);
 
-                    if (!this.self.getId().equals(buffered.getSenderId())) {
-                        mc.increment(self.getId(), buffered.getSenderId());
+                    if (!this.self.getId().equals(buffered.getSender())) {
+                        mc.increment(self.getId(), buffered.getSender());
                     }
 
                     try {
@@ -130,7 +148,7 @@ public class CausalMulticast {
                         System.err.printf("[ERROR] ocorreu um erro no processamento da mensagem %s: %s\n", buffered, e.getMessage());
                     }
 
-                    System.err.printf("[INFO] mensagem %s entregue.\n", buffered);
+                    eventListener.onMesssageDelivered(buffered);
                 }
             }
 
@@ -145,7 +163,7 @@ public class CausalMulticast {
         for (WireMessage buffered : stabilityBuffer) {
             if (isMessageStable(buffered)) {
                 toRemove.add(buffered);
-                System.err.printf("[INFO] mensagem %s descartada.\n", buffered);
+                eventListener.onMessageDiscarded(buffered);
             }
         }
 
@@ -153,13 +171,13 @@ public class CausalMulticast {
     }
 
     private synchronized boolean isMessageNewer(WireMessage message) {
-        VectorClock messageVc = message.getSenderClock();
+        VectorClock messageVc = message.getVC();
 
-        return messageVc.get(message.getSenderId()) > mc.get(message.getSenderId(), message.getSenderId());
+        return messageVc.get(message.getSender()) > mc.get(message.getSender(), message.getSender());
     }
     
     private synchronized boolean isMessageDeliverable(WireMessage message) {
-        VectorClock theirVc = message.getSenderClock();
+        VectorClock theirVc = message.getVC();
 
         for (String id : theirVc.keys()) {
             // Caso eu não tenha descoberto um outro processo que
@@ -180,8 +198,8 @@ public class CausalMulticast {
     }
 
     private synchronized boolean isMessageStable(WireMessage message) {
-        String theirId = message.getSenderId();
-        VectorClock theirVc = message.getSenderClock();
+        String theirId = message.getSender();
+        VectorClock theirVc = message.getVC();
 
         for (Participant participant : participants) {
             if (theirVc.get(theirId) > mc.get(participant.getId(), theirId)) {
@@ -191,11 +209,5 @@ public class CausalMulticast {
 
         return true;
     }
-
-    static interface EventListener {
-        void onEnvelope(Envelope envelope);
-        void onMessageReceived(WireMessage message);
-        void onMesssageDelivered(WireMessage message);
-        void onMessageDiscarded(WireMessage message);
-    }
 }
+

@@ -1,6 +1,6 @@
 package CausalMulticast;
 
-class Participant {
+public class Participant implements Comparable<Participant> {
     private final String ip;
     private final int port;
 
@@ -37,6 +37,11 @@ class Participant {
         result = 31 * result + port;
 
         return result;
+    }
+
+    @Override
+    public int compareTo(Participant other) {
+        return this.getId().compareTo(other.getId());
     }
 
     @Override

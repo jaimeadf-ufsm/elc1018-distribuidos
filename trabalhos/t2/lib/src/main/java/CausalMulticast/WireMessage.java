@@ -7,30 +7,34 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
-class WireMessage implements Serializable {
+public class WireMessage implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private final String senderId;
-    private final VectorClock senderVc;
+    private final String sender;
+    private final VectorClock vc;
 
     private final String content;
 
     public WireMessage(String senderId, VectorClock senderVc, String content) {
-        this.senderId = senderId;
-        this.senderVc = senderVc;
+        this.sender = senderId;
+        this.vc = senderVc;
         this.content = content;
     }
 
-    public String getSenderId() {
-        return senderId;
+    public String getSender() {
+        return sender;
     }
 
-    public VectorClock getSenderClock() {
-        return senderVc;
+    public VectorClock getVC() {
+        return vc;
     }
 
     public String getContent() {
         return content;
+    }
+
+    public int getSequence() {
+        return vc.get(sender);
     }
 
     public byte[] toBytes() throws IOException {
@@ -45,7 +49,7 @@ class WireMessage implements Serializable {
 
     @Override
     public String toString() {
-        return senderId + "[" + senderVc.get(senderId) + "]";
+        return sender + "[" + vc.get(sender) + "]";
     }
 
     public static WireMessage fromBytes(byte[] data) throws IOException, ClassNotFoundException {

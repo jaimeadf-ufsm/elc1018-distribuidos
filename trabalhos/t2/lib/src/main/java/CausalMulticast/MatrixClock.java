@@ -3,11 +3,19 @@ package CausalMulticast;
 import java.util.HashMap;
 import java.util.Map;
 
-class MatrixClock {
+public class MatrixClock {
     private final Map<String, VectorClock> matrix;
 
     public MatrixClock() {
         this.matrix = new HashMap<>();
+    }
+
+    public MatrixClock(MatrixClock other) {
+        this.matrix = new HashMap<>();
+
+        for (Map.Entry<String, VectorClock> entry : other.matrix.entrySet()) {
+            this.matrix.put(entry.getKey(), new VectorClock(entry.getValue()));
+        }
     }
 
     public synchronized VectorClock get(String myId) {
