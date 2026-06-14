@@ -20,4 +20,27 @@ class Participant {
     public String getId() {
         return ip + ":" + port;
     }
+
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Participant that = (Participant) o;
+
+        if (port != that.port) return false;
+
+        return ip.equals(that.ip);
+    }
+
+    public int hashCode() {
+        int result = ip.hashCode();
+        result = 31 * result + port;
+
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return getId();
+    }
 }
