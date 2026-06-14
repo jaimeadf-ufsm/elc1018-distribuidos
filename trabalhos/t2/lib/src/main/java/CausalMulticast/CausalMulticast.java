@@ -12,8 +12,7 @@ public class CausalMulticast {
     private final Set<Participant> participants;
 
     private final MatrixClock mc;
-    private final List<WireMessage> deliveryBuffer;
-    private final List<WireMessage> stabilityBuffer;
+    private final List<WireMessage> buffer;
 
     private final MessageSender sender;
     private final MessageReceiver receiver;
@@ -30,8 +29,7 @@ public class CausalMulticast {
         this.participants.add(this.self);
 
         this.mc = new MatrixClock();
-        this.deliveryBuffer = new ArrayList<>();
-        this.stabilityBuffer = new ArrayList<>();
+        this.buffer = new ArrayList<>();
 
         this.sender = new MessageSender();
         this.receiver = new MessageReceiver(port, this::onMessageReceived);
@@ -53,6 +51,8 @@ public class CausalMulticast {
         eventListener.onMatrixClockUpdated(new MatrixClock(mc));
 
         onMessageReceived(msg);
+
+        eventListener.onMesssageDelivered(msg);
         cliente.deliver(message);
 
         for (Participant participant : participants) {
@@ -87,8 +87,8 @@ public class CausalMulticast {
         return new MatrixClock(mc);
     }
 
-    public synchronized List<WireMessage> getStabilityBuffer() {
-        return new ArrayList<>(stabilityBuffer);
+    public synchronized List<WireMessage> getBuffer() {
+        return new ArrayList<>(buffer);
     }
 
     private synchronized void onMessageReceived(WireMessage message) {
@@ -99,8 +99,10 @@ public class CausalMulticast {
             eventListener.onMatrixClockUpdated(new MatrixClock(mc));
         }
 
-        deliveryBuffer.add(message);
-        stabilityBuffer.add(message);
+        buffer.add(message);
+
+        eventListener.onMessageDeposited(message);
+        eventListener.onBufferUpdated(new ArrayList<>(buffer));
 
         attemptDelivery();
         attemptDiscard();
@@ -132,46 +134,51 @@ public class CausalMulticast {
     }
 
     private synchronized void attemptDelivery() {
-        List<WireMessage> toRemove = new java.util.ArrayList<>();
+        boolean repeat = true;
 
-        do {
-            toRemove.clear();
+        while (repeat) {
+            repeat = false;
 
-            for (WireMessage buffered : deliveryBuffer) {
+            for (WireMessage buffered : buffer) {
                 if (isMessageDeliverable(buffered)) {
-                    toRemove.add(buffered);
+                    repeat = true;
 
                     if (!this.self.getId().equals(buffered.getSender())) {
                         mc.increment(self.getId(), buffered.getSender());
                         eventListener.onMatrixClockUpdated(new MatrixClock(mc));
                     }
 
+                    eventListener.onMesssageDelivered(buffered);
+
                     try {
                         client.deliver(buffered.getContent());
                     } catch (Exception e) {
                         System.err.printf("[ERROR] ocorreu um erro no processamento da mensagem %s: %s\n", buffered, e.getMessage());
                     }
-
-                    eventListener.onMesssageDelivered(buffered);
                 }
             }
-
-            deliveryBuffer.removeAll(toRemove);
-        } while (!toRemove.isEmpty());
+        }
     }
 
 
     public synchronized void attemptDiscard() {
         List<WireMessage> toRemove = new java.util.ArrayList<>();
 
-        for (WireMessage buffered : stabilityBuffer) {
+        for (WireMessage buffered : buffer) {
             if (isMessageStable(buffered)) {
                 toRemove.add(buffered);
-                eventListener.onMessageDiscarded(buffered);
             }
         }
 
-        stabilityBuffer.removeAll(toRemove);
+        buffer.removeAll(toRemove);
+
+        for (WireMessage discarded : toRemove) {
+            eventListener.onMessageDiscarded(discarded);
+        }
+
+        if (!toRemove.isEmpty()) {
+            eventListener.onBufferUpdated(new ArrayList<>(buffer));
+        }
     }
 
     private synchronized boolean isMessageNewer(WireMessage message) {

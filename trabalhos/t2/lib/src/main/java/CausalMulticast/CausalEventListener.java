@@ -1,5 +1,7 @@
 package CausalMulticast;
 
+import java.util.List;
+
 public class CausalEventListener {
     public CausalEventListener() {}
 
@@ -13,8 +15,11 @@ public class CausalEventListener {
 
     public void onMesssageDelivered(WireMessage message) {}
 
+    public void onMessageDeposited(WireMessage message) {}
+
     public void onMessageDiscarded(WireMessage message) {}
 
-    public void onParticipantJoined(Participant participant) {}
+    public void onBufferUpdated(List<WireMessage> buffer) {}
 
+    public void onParticipantJoined(Participant participant) {}
 }

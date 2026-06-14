@@ -32,7 +32,8 @@ public class Client implements ICausalMulticast {
 
             @Override
             public void onMatrixClockUpdated(MatrixClock clock) {
-                System.out.println(formatMatrixClock(clock, "> "));
+                System.out.println();
+                System.out.println(formatMatrixClock(clock));
                 System.out.println();
             }
 
@@ -45,13 +46,24 @@ public class Client implements ICausalMulticast {
 
             @Override
             public void onMesssageDelivered(WireMessage message) {
-                // System.out.printf("entrega     %s\n", shortMessageId(message));
-                System.out.printf("entrega %s \"%s\"\n", shortMessageId(message), message.getContent());
+                System.out.printf("entrega  %s \"%s\"\n", shortMessageId(message), message.getContent());
+            }
+
+            @Override
+            public void onMessageDeposited(WireMessage message) {
+                System.out.printf("deposita %s \"%s\"\n", shortMessageId(message), message.getContent());
             }
 
             @Override
             public void onMessageDiscarded(WireMessage message) {
                 System.out.printf("descarta %s \"%s\"\n", shortMessageId(message), message.getContent());
+            }
+
+            @Override
+            public void onBufferUpdated(List<WireMessage> buffer) {
+                System.out.println();
+                System.out.println(formatMessageBuffer(buffer));
+                System.out.println();
             }
 
             @Override
@@ -80,7 +92,7 @@ public class Client implements ICausalMulticast {
     }
 
     public void deliver(String message) {
-        System.out.printf("cliente \"%s\"\n", message);
+        // System.out.printf("cliente  \"%s\"\n", message);
     }
 
     public void start() {
@@ -135,12 +147,10 @@ public class Client implements ICausalMulticast {
                     System.out.printf("transmissão #%d não encontrada\n", id);
                 }
             } else if (command.equals("/buffer")) {
-                System.out.println(formatMessageBuffer(middleware.getStabilityBuffer()));
+                System.out.println(formatMessageBuffer(middleware.getBuffer()));
                 System.out.println();
             } else if (command.equals("/pendente")){
-                for (Map.Entry<Integer, Envelope> entry : pendingEnvelopes.entrySet()) {
-                    System.out.printf("- #%d: %s -> %s\n", entry.getKey(), shortMessageId(entry.getValue().getMessage()), shortParticipantId(entry.getValue().getRecipient()));
-                }
+                System.out.println(formatPendingTransmissions());
                 System.out.println();
             } else if (command.equals("/sair")) {
                 break;
@@ -166,27 +176,41 @@ public class Client implements ICausalMulticast {
     private String formatMessageBuffer(List<WireMessage> buffer) {
         StringBuilder builder = new StringBuilder();
 
+        builder.append(String.format("> buffer (%d):", buffer.size()));
+
         for (WireMessage message : buffer) {
-            builder.append(String.format("- %s (VC: %s)\n", shortMessageId(message), formatVectorClock(message.getVC())));
+            builder.append(String.format("\n> - %s \"%s\"", shortMessageId(message), message.getContent()));
         }
 
         return builder.toString();
     }
 
-    private String formatMatrixClock(MatrixClock mc, String indent) {
+    public String formatPendingTransmissions() {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append("> transmissões pendentes:");
+
+        for (Map.Entry<Integer, Envelope> entry : pendingEnvelopes.entrySet()) {
+            builder.append(String.format("\n> - #%d: %s -> %s", entry.getKey(), shortMessageId(entry.getValue().getMessage()), shortParticipantId(entry.getValue().getRecipient())));
+        }
+
+        return builder.toString();
+    }
+
+    private String formatMatrixClock(MatrixClock mc) {
         StringBuilder builder = new StringBuilder();
         Set<Participant> participants = middleware.getParticipants();
 
-        builder.append(String.format("%smatriz relógio:\n", indent));
+        builder.append(String.format("> matriz relógio:\n"));
 
-        builder.append(String.format("%s%8s |", indent, ""));
+        builder.append(String.format("> %8s |", ""));
         for (Participant p : participants) {
             builder.append(String.format("%8s |", shortParticipantId(p)));
         }
 
         for (Participant p : participants) {
             builder.append("\n");
-            builder.append(String.format("%s%8s |", indent, shortParticipantId(p)));
+            builder.append(String.format("> %8s |", shortParticipantId(p)));
 
             for (Participant q : participants) {
                 builder.append(String.format("%8s |", formatClockValue(mc.get(p.getId(), q.getId()))));
@@ -221,6 +245,6 @@ public class Client implements ICausalMulticast {
     }
 
     private String shortParticipantId(String id) {
-        return "p" + id.substring(id.indexOf(":") + 1);
+        return id.substring(id.indexOf(":") + 1);
     }
 }
