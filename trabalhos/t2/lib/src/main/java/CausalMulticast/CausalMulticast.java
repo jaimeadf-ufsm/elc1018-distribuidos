@@ -58,7 +58,7 @@ public class CausalMulticast {
         cliente.deliver(message);
 
         for (Participant participant : participants.values()) {
-            if (participant.equals(self)) {
+            if (participant.equals(self) || participant.isDisabled()) {
                 continue;
             }
 
@@ -212,7 +212,7 @@ public class CausalMulticast {
 
         if (stored == null) {
             if (locked) {
-                System.err.printf("[ERRO] participante %s não pode ser adicionado após envio de mensagens.\n", participant);
+                System.err.printf("[AVISO] participante %s não pode ser adicionado após envio de mensagens.\n", participant);
                 return;
             }
 
@@ -229,6 +229,8 @@ public class CausalMulticast {
             mc.remove(id);
 
             listener.onParticipantLeft(participant);
+
+            attemptDiscard();
         }
     }
 
@@ -246,6 +248,18 @@ public class CausalMulticast {
         this.locked = true;
 
         listener.onMessageReceived(message);
+
+        Participant sender = participants.get(message.getSender());
+
+        if (sender == null) {
+            System.err.printf("[AVISO] mensagem recebida de participante desconhecido %s\n", message.getSender());
+            return;
+        }
+
+        if (sender.isDisabled()) {
+            System.err.printf("[AVISO] mensagem recebida de participante que já saiu %s\n", message.getSender());
+            return;
+        }
 
         if (isMessageNewer(message)) {
             mc.set(message.getSender(), message.getVC());

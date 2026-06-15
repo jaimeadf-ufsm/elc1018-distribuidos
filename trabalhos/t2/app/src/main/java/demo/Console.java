@@ -26,13 +26,12 @@ public final class Console {
         System.out.println(row(command("/enviar <msg>", "envia uma mensagem para o grupo")));
         System.out.println(row(command("/trans <ids>", "transmite as pendentes (ex: 1 3 ou 1-3)")));
         System.out.println(row(command("/pendente", "lista as transmissões retidas")));
-        System.out.println(row(command("/buffer", "mostra o buffer de mensagens")));
         System.out.println(row(command("/ajuda", "mostra esta ajuda")));
         System.out.println(row(command("/sair", "encerra o cliente")));
         System.out.println();
     }
 
-    public void transmissionRetained(int id, DeferredTransmission transmission) {
+    public void transmission(int id, DeferredTransmission transmission) {
         WireMessage message = transmission.getMessage();
 
         System.out.println(Ansi.paint(String.format("→ transmissão #%-3d %s → %s  \"%s\"", id, shortMessageId(message), shortParticipantId(transmission.getTarget()), message.getContent()), Ansi.YELLOW));

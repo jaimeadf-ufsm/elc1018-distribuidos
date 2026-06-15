@@ -60,7 +60,7 @@ public class Client implements ICausalMulticast {
 
                 switch (command) {
                     case "/enviar" -> middleware.mcsend(arg, this);
-                    case "/trans" -> transmit(arg);
+                    case "/transmitir" -> transmit(arg);
                     case "/pendente" -> console.pendingTransmissions(pending);
                     case "/ajuda" -> console.help();
                     case "/sair" -> running = false;
@@ -121,7 +121,7 @@ public class Client implements ICausalMulticast {
         @Override
         public void onTransmission(DeferredTransmission transmission) {
             int id = pending.register(transmission);
-            console.transmissionRetained(id, transmission);
+            console.transmission(id, transmission);
         }
 
         @Override
