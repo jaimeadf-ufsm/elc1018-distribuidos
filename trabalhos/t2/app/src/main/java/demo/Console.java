@@ -24,8 +24,8 @@ public final class Console {
     public void help() {
         System.out.println(header("comandos", Ansi.BLUE));
         System.out.println(row(command("/enviar <msg>", "envia uma mensagem para o grupo")));
-        System.out.println(row(command("/trans <ids>", "transmite as pendentes (ex: 1 3 ou 1-3)")));
-        System.out.println(row(command("/pendente", "lista as transmissões retidas")));
+        System.out.println(row(command("/transmitir <ids>", "transmite retidas (ex: 1 ou 1-3)")));
+        System.out.println(row(command("/retidas", "lista as transmissões retidas")));
         System.out.println(row(command("/ajuda", "mostra esta ajuda")));
         System.out.println(row(command("/sair", "encerra o cliente")));
         System.out.println();
@@ -37,13 +37,13 @@ public final class Console {
         System.out.println(Ansi.paint(String.format("→ transmissão #%-3d %s → %s  \"%s\"", id, shortMessageId(message), shortParticipantId(transmission.getTarget()), message.getContent()), Ansi.YELLOW));
     }
 
-    public void message(WireMessage message, Collection<Participant> participants) {
+    public void message(WireMessage message) {
         StringBuilder block = new StringBuilder();
 
         block.append(header("mensagem " + shortMessageId(message), Ansi.BLUE));
         block.append("\n").append(row(field("remetente", shortParticipantId(message.getSender()))));
         block.append("\n").append(row(field("conteúdo", "\"" + message.getContent() + "\"")));
-        block.append("\n").append(row(field("relógio", vectorClock(message.getVC(), participants))));
+        block.append("\n").append(row(field("relógio", vectorClock(message.getVC()))));
 
         printBlock(block.toString());
     }
@@ -138,11 +138,11 @@ public final class Console {
                 + Ansi.paint("  (use /ajuda)", Ansi.DIM));
     }
 
-    private String vectorClock(VectorClock vc, Collection<Participant> participants) {
+    private String vectorClock(VectorClock vc) {
         StringBuilder builder = new StringBuilder();
 
-        for (Participant p : participants) {
-            builder.append(String.format("%s=%s  ", shortParticipantId(p), clockValue(vc.get(p.getId()))));
+        for (String id : vc.keys()) {
+            builder.append(String.format("%s=%s  ", shortParticipantId(id), clockValue(vc.get(id))));
         }
 
         return builder.toString().trim();

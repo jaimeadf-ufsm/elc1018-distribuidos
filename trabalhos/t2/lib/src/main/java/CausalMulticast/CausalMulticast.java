@@ -199,6 +199,10 @@ public class CausalMulticast {
         // VC[sender] > MC[X][sender] para algum X
         // então a mensagem não é estável.
         for (Participant participant : participants.values()) {
+            if (participant.isDisabled()) {
+                continue;
+            }
+
             if (theirVc.get(theirId) > mc.get(participant.getId(), theirId)) {
                 return false;
             }

@@ -61,7 +61,7 @@ public class Client implements ICausalMulticast {
                 switch (command) {
                     case "/enviar" -> middleware.mcsend(arg, this);
                     case "/transmitir" -> transmit(arg);
-                    case "/pendente" -> console.pendingTransmissions(pending);
+                    case "/retidas" -> console.pendingTransmissions(pending);
                     case "/ajuda" -> console.help();
                     case "/sair" -> running = false;
                     default -> console.unknownCommand(command);
@@ -126,7 +126,7 @@ public class Client implements ICausalMulticast {
 
         @Override
         public void onMessageReceived(WireMessage message) {
-            console.message(message, middleware.getParticipants().values());
+            console.message(message);
         }
 
         @Override
