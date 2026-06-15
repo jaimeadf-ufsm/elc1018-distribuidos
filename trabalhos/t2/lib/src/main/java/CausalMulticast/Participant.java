@@ -1,5 +1,8 @@
 package CausalMulticast;
 
+/**
+ * Um processo participante do grupo, identificado pelo par ip:porta.
+ */
 public class Participant implements Comparable<Participant> {
     private final String ip;
     private final int port;
@@ -11,22 +14,27 @@ public class Participant implements Comparable<Participant> {
         this.disabled = false;
     }
 
+    /** @return endereço IP */
     public String getIp() {
         return ip;
     }
 
+    /** @return porta */
     public int getPort() {
         return port;
     }
 
+    /** @return identificador */
     public String getId() {
         return ip + ":" + port;
     }
 
+    /** @return {@code true} se o participante saiu do grupo */
     public synchronized boolean isDisabled() {
         return disabled;
     }
 
+    /** Marca o participante como inativo. */
     public synchronized void disable() {
         this.disabled = true;
     }

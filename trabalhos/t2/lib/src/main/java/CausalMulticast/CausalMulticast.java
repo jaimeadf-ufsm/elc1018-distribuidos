@@ -3,6 +3,19 @@ package CausalMulticast;
 import java.io.IOException;
 import java.util.*;
 
+/**
+ * Middleware de multicast causal.
+ *
+ * <p>Garante que as mensagens enviadas ao grupo sejam entregues à aplicação
+ * respeitando a ordem causal, independentemente da ordem de chegada pela rede.
+ * Mensagens recebidas são guardadas em um buffer, entregues quando seus
+ * requisitos causais são satisfeitos e descartadas quando se tornam estáveis
+ * (recebidas por todos os participantes).
+ *
+ * <p>A ordenação usa um {@link MatrixClock}: cada linha registra o que um
+ * participante já recebeu de cada outro. Os participantes são descobertos
+ * dinamicamente pelo {@link DiscoveryService}.
+ */
 public class CausalMulticast {
     private final ICausalMulticast client;
 
@@ -21,6 +34,14 @@ public class CausalMulticast {
 
     private boolean locked;
 
+    /**
+     * Cria o middleware, inicia a escuta de mensagens e a descoberta de
+     * participantes.
+     *
+     * @param ip     endereço local deste participante
+     * @param port   porta local usada para receber mensagens
+     * @param client aplicação que receberá as mensagens entregues
+     */
     public CausalMulticast(String ip, Integer port, ICausalMulticast client) {
         this.client = client;
 
@@ -46,6 +67,14 @@ public class CausalMulticast {
         this.discovery.start();
     }
 
+    /**
+     * Envia uma mensagem para todos os participantes do grupo. A mensagem é
+     * entregue imediatamente a este processo e, para os demais, encaminhada
+     * como {@link DeferredTransmission} (podendo ser retida e liberada depois).
+     *
+     * @param message conteúdo a enviar
+     * @param cliente aplicação local, que recebe a entrega imediata
+     */
     public synchronized void mcsend(String message, ICausalMulticast cliente) {
         WireMessage msg = new WireMessage(self.getId(), new VectorClock(mc.get(self.getId())), message);
 
@@ -68,31 +97,46 @@ public class CausalMulticast {
         }
     }
 
+    /**
+     * Registra um observador dos eventos internos do middleware (recepção,
+     * entrega, descarte, transmissões retidas, etc.).
+     *
+     * @param listener observador a ser notificado
+     */
     public synchronized void intercept(CausalEventListener listener) {
         this.listener = listener;
     }
-    
+
+    /** Encerra a escuta de mensagens e a descoberta de participantes. */
     public synchronized void close() {
         receiver.stop();
         discovery.stop();
     }
 
+    /** @return o participante que representa este processo */
     public synchronized Participant getSelf() {
         return self;
     }
 
+    /** @return cópia dos participantes conhecidos, indexados pelo id */
     public synchronized Map<String, Participant> getParticipants() {
         return new TreeMap<>(participants);
     }
 
+    /** @return cópia da matriz de relógios atual */
     public synchronized MatrixClock getMatrixClock() {
         return new MatrixClock(mc);
     }
 
+    /** @return cópia das mensagens atualmente no buffer */
     public synchronized List<WireMessage> getBuffer() {
         return new ArrayList<>(buffer);
     }
 
+    /**
+     * Percorre o buffer entregando todas as mensagens cujos requisitos causais
+     * já estão satisfeitos, repetindo enquanto novas entregas forem possíveis.
+     */
     private synchronized void attemptDelivery() {
         boolean repeat = true;
 
@@ -121,6 +165,7 @@ public class CausalMulticast {
     }
 
 
+    /** Remove do buffer as mensagens que já se tornaram estáveis. */
     public synchronized void attemptDiscard() {
         List<WireMessage> toRemove = new java.util.ArrayList<>();
 
@@ -141,10 +186,18 @@ public class CausalMulticast {
         }
     }
 
+    /** @return {@code true} se a mensagem é mais nova do que a última conhecida do remetente */
     private synchronized boolean isMessageNewer(WireMessage message) {
         return message.getSequence() > mc.get(message.getSender(), message.getSender());
     }
-    
+
+    /**
+     * Verifica se a mensagem pode ser entregue à aplicação: deve ser a próxima
+     * do remetente e todas as mensagens das quais ela depende causalmente já
+     * devem ter sido recebidas.
+     *
+     * @return {@code true} se a mensagem está pronta para entrega
+     */
     private synchronized boolean isMessageDeliverable(WireMessage message) {
         String theirId = message.getSender();
         VectorClock theirVc = message.getVC();
@@ -188,6 +241,12 @@ public class CausalMulticast {
         return true;
     }
 
+    /**
+     * Verifica se a mensagem é estável, ou seja, se todos os participantes
+     * ativos já a receberam e portanto ela pode ser descartada do buffer.
+     *
+     * @return {@code true} se a mensagem é estável
+     */
     private synchronized boolean isMessageStable(WireMessage message) {
         // Verifica se:
         // VC[sender] <= MC[X][sender] para todo X
@@ -211,6 +270,10 @@ public class CausalMulticast {
         return true;
     }
 
+    /**
+     * Adiciona um participante recém-descoberto. Ignora a inclusão após o
+     * envio das primeiras mensagens, quando o grupo já está fixado.
+     */
     private synchronized void addParticipant(Participant participant) {
         Participant stored = participants.get(participant.getId());
 
@@ -225,6 +288,10 @@ public class CausalMulticast {
         }
     }
 
+    /**
+     * Marca um participante como inativo e reavalia o descarte, pois sua saída
+     * pode tornar mensagens estáveis.
+     */
     private synchronized void removeParticipant(String id) {
         Participant participant = participants.get(id);
 
@@ -238,6 +305,7 @@ public class CausalMulticast {
         }
     }
 
+    /** Trata mensagens de descoberta, adicionando (HELLO) ou removendo (BYE) participantes. */
     private synchronized void onDiscoveryMessage(DiscoveryMessage message) {
         Participant other = new Participant(message.getSenderIp(), message.getSenderPort());
 
@@ -248,6 +316,10 @@ public class CausalMulticast {
         }
     }
 
+    /**
+     * Ponto de entrada de toda mensagem (própria ou da rede): atualiza a
+     * matriz de relógios, deposita no buffer e dispara entrega e descarte.
+     */
     private synchronized void onMessageReceived(WireMessage message) {
         this.locked = true;
 
@@ -279,6 +351,10 @@ public class CausalMulticast {
         attemptDiscard();
     }
 
+    /**
+     * Efetiva uma transmissão liberada, entregando localmente se o destino for
+     * este processo, ou envia pela rede caso contrário.
+     */
     private synchronized void onTransmissionDispatched(DeferredTransmission transmission) {
         if (transmission.getTarget().equals(self)) {
             onMessageReceived(transmission.getMessage());

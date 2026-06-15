@@ -4,6 +4,11 @@ import java.io.IOException;
 import java.net.*;
 import java.util.Arrays;
 
+/**
+ * Descoberta dinâmica de participantes via multicast UDP. Anuncia
+ * periodicamente a presença deste processo ({@code HELLO}) e escuta os
+ * anúncios dos demais, notificando o middleware sobre entradas e saídas.
+ */
 class DiscoveryService {
     private final String multicastIp;
     private final int multicastPort;
@@ -13,6 +18,7 @@ class DiscoveryService {
 
     private boolean running;
 
+    /** Cria o serviço no grupo multicast padrão ({@code 230.0.0.1:4446}). */
     public DiscoveryService(Participant self, EventListener eventListener) {
         this("230.0.0.1", 4446, self, eventListener);
     }
@@ -26,6 +32,7 @@ class DiscoveryService {
         this.running = false;
     }
 
+    /** Inicia, em threads próprias, o anúncio periódico e a escuta de anúncios. */
     public void start() {
         this.running = true;
 
@@ -33,6 +40,7 @@ class DiscoveryService {
         new Thread(this::listenLoop).start();
     }
 
+    /** Interrompe os laços, enviando {@code BYE}. */
     public void stop() {
         this.running = false;
     }
@@ -97,6 +105,7 @@ class DiscoveryService {
         broadcast(DiscoveryMessage.createByeMessage(self));
     }
 
+    /** Receptor das mensagens de descoberta recebidas. */
     public interface EventListener {
         void onDiscoveryMessage(DiscoveryMessage message);
     }

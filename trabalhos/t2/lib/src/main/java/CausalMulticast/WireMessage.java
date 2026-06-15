@@ -2,6 +2,10 @@ package CausalMulticast;
 
 import java.io.*;
 
+/**
+ * Mensagem que trafega na rede, carregando o id do remetente, o relógio vetorial no
+ * momento do envio e o conteúdo.
+ */
 public class WireMessage implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
@@ -17,18 +21,22 @@ public class WireMessage implements Serializable {
         this.content = content;
     }
 
+    /** @return id do remetente */
     public String getSender() {
         return sender;
     }
 
+    /** @return relógios do remetente na hora do envio */
     public VectorClock getVC() {
         return vc;
     }
 
+    /** @return conteúdo da mensagem */
     public String getContent() {
         return content;
     }
 
+    /** @return número atual da mensagem */
     public int getSequence() {
         return vc.get(sender);
     }

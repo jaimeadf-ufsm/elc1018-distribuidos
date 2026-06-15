@@ -22,6 +22,13 @@ public final class Ansi {
 
     private Ansi() {}
 
+    /**
+     * Aplica estilos ANSI ao texto.
+     *
+     * @param text   texto a colorir
+     * @param styles códigos de estilo a aplicar
+     * @return texto formatado
+     */
     public static String paint(String text, String... styles) {
         if (!ENABLED || styles.length == 0) {
             return text;

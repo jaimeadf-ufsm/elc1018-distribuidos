@@ -8,18 +8,18 @@ import CausalMulticast.DeferredTransmission;
 
 /**
  * Registro das transmissões retidas pelo cliente.
- *
- * Sempre que o middleware pede para enviar uma mensagem a outro processo, o
- * cliente retém o transmission aqui sob um identificador sequencial em vez de
- * despachá-lo de imediato. Assim o usuário pode escolher quando — e em qual
- * ordem — cada transmissão é enviada (comando /trans), o que permite exercitar
- * a entrega causal embaralhando a rede de propósito.
  */
 public final class PendingTransmissions {
     private final Map<Integer, DeferredTransmission> transmissions = new LinkedHashMap<>();
 
     private int nextId = 1;
 
+    /**
+     * Registra uma transmissão retida.
+     *
+     * @param transmission transmissão a guardar
+     * @return id atribuído, usado depois para liberá-la
+     */
     public int register(DeferredTransmission transmission) {
         int id = nextId++;
         transmissions.put(id, transmission);
@@ -27,18 +27,27 @@ public final class PendingTransmissions {
         return id;
     }
 
+    /**
+     * Remove e retorna a transmissão com o id informado.
+     *
+     * @param id identificador da transmissão
+     * @return a transmissão, ou {@code null} se não existir
+     */
     public DeferredTransmission remove(int id) {
         return transmissions.remove(id);
     }
 
+    /** @return as transmissões retidas, na ordem de registro */
     public Set<Map.Entry<Integer, DeferredTransmission>> entries() {
         return transmissions.entrySet();
     }
 
+    /** @return {@code true} se não há transmissões retidas */
     public boolean empty() {
         return transmissions.isEmpty();
     }
 
+    /** @return quantidade de transmissões retidas */
     public int size() {
         return transmissions.size();
     }

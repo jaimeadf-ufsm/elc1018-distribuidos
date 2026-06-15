@@ -5,6 +5,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.util.Arrays;
 
+/** Escuta uma porta UDP e entrega as mensagens recebidas ao middleware. */
 class MessageReceiver {
     private final int port;
     private final Listener listener;
@@ -18,12 +19,14 @@ class MessageReceiver {
         this.running = false;
     }
 
+    /** Inicia, em uma thread própria, o laço de recepção de mensagens. */
     public void start() {
         this.running = true;
 
         new Thread(this::listenMessageLoop).start();
     }
 
+    /** Interrompe o laço de recepção. */
     public void stop() {
         this.running = false;
     }
@@ -49,6 +52,7 @@ class MessageReceiver {
         }
     }
 
+    /** Receptor das mensagens recebidas da rede. */
     public static interface Listener {
         void onMessageReceived(WireMessage message);
     }

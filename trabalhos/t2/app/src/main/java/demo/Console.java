@@ -7,13 +7,12 @@ import java.util.Map;
 import CausalMulticast.*;
 
 /**
- * Camada de apresentação do cliente: concentra toda a formatação e coloração
- * da saída no terminal. Não guarda estado nem toma decisões — apenas recebe os
- * dados já prontos e os imprime de forma legível.
+ * Formatação e coloração da saída no terminal.
  */
 public final class Console {
     private static final int CLOCK_WIDTH = 6;
 
+    /** Imprime o cabeçalho de abertura com o endereço local. */
     public void banner(String ip, int port) {
         System.out.println();
         System.out.println(Ansi.paint("  Causal Multicast — cliente", Ansi.BOLD, Ansi.CYAN));
@@ -21,6 +20,7 @@ public final class Console {
         System.out.println();
     }
 
+    /** Lista os comandos disponíveis. */
     public void help() {
         System.out.println(header("comandos", Ansi.BLUE));
         System.out.println(row(command("/enviar <msg>", "envia uma mensagem para o grupo")));
@@ -31,12 +31,14 @@ public final class Console {
         System.out.println();
     }
 
+    /** Sinaliza que uma transmissão foi retida, exibindo seu id. */
     public void transmission(int id, DeferredTransmission transmission) {
         WireMessage message = transmission.getMessage();
 
         System.out.println(Ansi.paint(String.format("→ transmissão #%-3d %s → %s  \"%s\"", id, shortMessageId(message), shortParticipantId(transmission.getTarget()), message.getContent()), Ansi.YELLOW));
     }
 
+    /** Exibe os detalhes de uma mensagem recebida. */
     public void message(WireMessage message) {
         StringBuilder block = new StringBuilder();
 
@@ -48,6 +50,7 @@ public final class Console {
         printBlock(block.toString());
     }
 
+    /** Exibe o conteúdo atual do buffer. */
     public void buffer(List<WireMessage> buffer) {
         String count = buffer.isEmpty() ? "vazio" : Integer.toString(buffer.size());
 
@@ -60,6 +63,7 @@ public final class Console {
         printBlock(block.toString());
     }
 
+    /** Lista as transmissões retidas aguardando liberação. */
     public void pendingTransmissions(PendingTransmissions pending) {
         String count = pending.empty() ? "nenhuma" : Integer.toString(pending.size());
 
@@ -78,6 +82,7 @@ public final class Console {
         printBlock(block.toString());
     }
 
+    /** Exibe a matriz de relógios em forma de tabela. */
     public void matrixClock(MatrixClock clock, Collection<Participant> participants) {
         StringBuilder block = new StringBuilder(header("matriz de relógios", Ansi.MAGENTA));
         StringBuilder head = new StringBuilder(lpad("", CLOCK_WIDTH));
@@ -101,43 +106,53 @@ public final class Console {
         printBlock(block.toString());
     }
 
+    /** Sinaliza que uma mensagem foi entregue à aplicação. */
     public void messageDelivered(WireMessage message) {
         messageAction("✓", "entregue", message, Ansi.GREEN);
     }
 
+    /** Sinaliza que uma mensagem foi depositada no buffer. */
     public void messageDeposited(WireMessage message) {
         messageAction("+", "depositada", message, Ansi.CYAN);
     }
 
+    /** Sinaliza que uma mensagem foi descartada do buffer. */
     public void messageDiscarded(WireMessage message) {
         messageAction("-", "descartada", message, Ansi.GRAY);
     }
 
+    /** Imprime uma linha de ação sobre uma mensagem (símbolo, verbo e cor). */
     public void messageAction(String symbol, String verb, WireMessage message, String color) {
         System.out.println(Ansi.paint(String.format("%s %-10s %-9s \"%s\"", symbol, verb, shortMessageId(message), message.getContent()), color));
     }
 
+    /** Sinaliza a entrada de um participante no grupo. */
     public void participantJoined(Participant participant) {
         participantAction("+", "ingressou", participant, Ansi.MAGENTA);
     }
 
+    /** Sinaliza a saída de um participante do grupo. */
     public void participantLeft(Participant participant) {
         participantAction("-", "saiu", participant, Ansi.MAGENTA);
     }
 
+    /** Imprime uma linha de ação sobre um participante (símbolo, verbo e cor). */
     public void participantAction(String symbol, String verb, Participant participant, String color) {
         System.out.println(Ansi.paint(String.format("%s %-10s %s", symbol, verb, participant), color));
     }
 
+    /** Imprime uma mensagem de aviso. */
     public void warn(String text) {
         System.out.println(Ansi.paint("! " + text, Ansi.RED));
     }
 
+    /** Sinaliza um comando não reconhecido. */
     public void unknownCommand(String command) {
         System.out.println(Ansi.paint("! comando desconhecido: " + command, Ansi.RED)
                 + Ansi.paint("  (use /ajuda)", Ansi.DIM));
     }
 
+    /** Formata um relógio vetorial como {@code porta=valor} para cada participante. */
     private String vectorClock(VectorClock vc) {
         StringBuilder builder = new StringBuilder();
 
@@ -148,42 +163,52 @@ public final class Console {
         return builder.toString().trim();
     }
 
+    /** Formata o título de um bloco. */
     private static String header(String title, String color) {
         return Ansi.paint("◆ " + title, Ansi.BOLD, color);
     }
 
+    /** Formata uma linha de conteúdo de um bloco, com a borda à esquerda. */
     private static String row(String content) {
         return Ansi.paint("│", Ansi.DIM) + " " + content;
     }
 
+    /** Formata um comando da ajuda, com nome em destaque e descrição. */
     private static String command(String name, String description) {
         return Ansi.paint(String.format("%-16s", name), Ansi.BOLD) + Ansi.paint(description, Ansi.DIM);
     }
 
+    /** Formata um par rótulo/valor. */
     private static String field(String label, String value) {
         return String.format("%-10s %s", label, value);
     }
 
+    /** Alinha um valor à direita na largura informada. */
     private static String lpad(String value, int width) {
         return String.format("%" + width + "s", value);
     }
 
+    /** Formata um valor de relógio, exibindo {@code -} quando desconhecido (-1). */
     private static String clockValue(int value) {
         return value == -1 ? "-" : Integer.toString(value);
     }
 
+    /** @return identificador curto da mensagem no formato {@code porta[sequência]} */
     private static String shortMessageId(WireMessage message) {
         return String.format("%s[%d]", shortParticipantId(message.getSender()), message.getSequence());
     }
 
+    /** @return identificador curto do participante */
     private static String shortParticipantId(Participant participant) {
         return shortParticipantId(participant.getId());
     }
 
+    /** @return identificador curto a partir de um id {@code ip:porta} */
     private static String shortParticipantId(String id) {
         return id.substring(id.indexOf(":") + 1);
     }
 
+    /** Imprime um bloco com linhas em branco antes e depois. */
     private static void printBlock(String block) {
         System.out.println();
         System.out.println(block);

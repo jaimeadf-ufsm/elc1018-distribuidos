@@ -8,12 +8,7 @@ import java.util.Set;
 import CausalMulticast.*;
 
 /**
- * Cliente interativo do multicast causal.
- *
- * Atua como o "controlador": conecta o middleware {@link CausalMulticast}, a
- * apresentação ({@link Console}) e o registro de transmissões retidas
- * ({@link PendingTransmissions}), encaminhando os eventos do middleware para a
- * tela e traduzindo os comandos do usuário em chamadas ao middleware.
+ * Cliente interativo do multicast.
  */
 public class Client implements ICausalMulticast {
     private final Console console;
@@ -27,6 +22,11 @@ public class Client implements ICausalMulticast {
         this.middleware.intercept(new MiddlewareEvents());
     }
 
+    /**
+     * Ponto de entrada. Espera o endereço e a porta locais como argumentos.
+     *
+     * @param args {@code <ip> <porta>}
+     */
     public static void main(String[] args) {
         if (args.length < 2) {
             System.err.println(Ansi.paint("uso: ./gradlew :app:run --args=\"<ip> <porta>\"", Ansi.RED));
@@ -48,6 +48,7 @@ public class Client implements ICausalMulticast {
         // A entrega à aplicação é apenas sinalizada na tela (ver onMesssageDelivered).
     }
 
+    /** Lê e executa os comandos do usuário até {@code /sair}. */
     public void start() {
         try (Scanner scanner = new Scanner(System.in)) {
             boolean running = true;
@@ -72,6 +73,7 @@ public class Client implements ICausalMulticast {
         middleware.close();
     }
 
+    /** Libera as transmissões retidas cujos ids são indicados no argumento. */
     private void transmit(String spec) {
         for (int id : parseIds(spec)) {
             DeferredTransmission transmission = pending.remove(id);
@@ -86,8 +88,7 @@ public class Client implements ICausalMulticast {
 
     /**
      * Interpreta uma lista de identificadores separados por espaço, aceitando
-     * faixas no formato "início-fim" (ex.: "1 3 5-7"). Tokens malformados são
-     * ignorados silenciosamente.
+     * faixas no formato "início-fim" (ex.: "1 3 5-7").
      */
     private Set<Integer> parseIds(String spec) {
         Set<Integer> ids = new LinkedHashSet<>();
