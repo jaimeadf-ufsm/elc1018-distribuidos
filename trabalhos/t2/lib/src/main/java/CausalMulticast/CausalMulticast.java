@@ -191,10 +191,24 @@ public class CausalMulticast {
         String theirId = message.getSender();
         VectorClock theirVc = message.getVC();
 
-        if (message.getSequence() - 1 != mc.get(self.getId(), theirId)) {
+        // Garantia de ordenação causal sobre o algoritmo de estabilidade.
+
+        // Verifica se é a próxima mensagem do remetente:
+        // VC[sender] == MC[self][sender] + 1
+
+        // Isso é necessário, porque o algoritmo de estabilidade sempre
+        // envia a sequência atual da mensagem no VC[sender] e não
+        // a sequência de seu requisito causal.
+        //
+        // Exemplo:
+        // Na primeira mensagem, o emissor envia VC[sender] = 0, 
+        // porém seu requisito causal é -1.
+        if (message.getSequence() != mc.get(self.getId(), theirId) + 1) {
             return false;
         }
 
+        // Verifica se já recebeu todas as mensagens causais anteriores:
+        // VC[X] <= MC[self][X] para todo X != sender
         for (String id : theirVc.keys()) {
             if (id.equals(theirId)) {
                 continue;
@@ -210,16 +224,22 @@ public class CausalMulticast {
 
         // Caso eu tenha descoberto um processo que o remetente ainda não
         // conhece, ele nunca caíra nessa comparação. 
-        // Isso não importa, pois é como se ele tivesse -1 para esse processo, e 
-        // e eu terei X, o que torna sempre entregável. -1 <= X sempre.
+        // Porém, isso não importa, pois é como se ele tivesse -1 para esse
+        // processo, e e eu terei X, o que torna sempre entregável.
 
         return true;
     }
 
     private synchronized boolean isMessageStable(WireMessage message) {
+        // Verifica se:
+        // VC[sender] <= MC[X][sender] para todo X
+
         String theirId = message.getSender();
         VectorClock theirVc = message.getVC();
 
+        // Ou seja, se
+        // VC[sender] > MC[X][sender] para algum X
+        // então a mensagem não é estável.
         for (Participant participant : participants) {
             if (theirVc.get(theirId) > mc.get(participant.getId(), theirId)) {
                 return false;
