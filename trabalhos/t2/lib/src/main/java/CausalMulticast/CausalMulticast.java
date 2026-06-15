@@ -47,7 +47,8 @@ public class CausalMulticast {
 
         this.discovery = new DiscoveryService(self, this::onDiscoveryMessage);
 
-        this.listener = new EventListener() {};
+        this.listener = new EventListener() {
+        };
 
         this.locked = false;
 
@@ -66,16 +67,20 @@ public class CausalMulticast {
      * @param cliente aplicação local, que recebe a entrega imediata
      */
     public synchronized void mcsend(String message, ICausalMulticast cliente) {
+        // Cria a mensagem com o vetor de relógio atual antes de incrementar
         WireMessage msg = new WireMessage(self.getId(), new VectorClock(mc.get(self.getId())), message);
 
+        // Avança o relógio local para refletir este envio
         mc.increment(self.getId(), self.getId());
         listener.onMatrixClockUpdated(new MatrixClock(mc));
 
+        // Deposita no buffer e tenta entrega local imediata
         onMessageReceived(msg);
 
         listener.onMessageDelivered(msg);
         cliente.deliver(message);
 
+        // Encaminha para cada participante remoto ativo como transmissão diferida
         for (Participant participant : participants.values()) {
             if (participant.equals(self) || participant.isDisabled()) {
                 continue;
@@ -133,10 +138,13 @@ public class CausalMulticast {
         while (repeat) {
             repeat = false;
 
+            // Repete enquanto houver novas entregas possíveis em uma mesma varredura
             for (WireMessage buffered : buffer) {
                 if (isMessageDeliverable(buffered)) {
                     repeat = true;
 
+                    // Incrementa a visão local sobre o remetente somente para mensagens externas;
+                    // a própria mensagem já foi contabilizada em mcsend
                     if (!this.self.getId().equals(buffered.getSender())) {
                         mc.increment(self.getId(), buffered.getSender());
                         listener.onMatrixClockUpdated(new MatrixClock(mc));
@@ -147,18 +155,19 @@ public class CausalMulticast {
                     try {
                         client.deliver(buffered.getContent());
                     } catch (Exception e) {
-                        System.err.printf("[ERROR] ocorreu um erro no processamento da mensagem %s: %s\n", buffered, e.getMessage());
+                        System.err.printf("[ERROR] ocorreu um erro no processamento da mensagem %s: %s\n", buffered,
+                                e.getMessage());
                     }
                 }
             }
         }
     }
 
-
     /** Remove do buffer as mensagens que já se tornaram estáveis. */
     public synchronized void attemptDiscard() {
         List<WireMessage> toRemove = new java.util.ArrayList<>();
 
+        // Coleta separadamente para não modificar o buffer durante a iteração
         for (WireMessage buffered : buffer) {
             if (isMessageStable(buffered)) {
                 toRemove.add(buffered);
@@ -176,7 +185,10 @@ public class CausalMulticast {
         }
     }
 
-    /** @return {@code true} se a mensagem é mais nova do que a última conhecida do remetente */
+    /**
+     * @return {@code true} se a mensagem é mais nova do que a última conhecida do
+     *         remetente
+     */
     private synchronized boolean isMessageNewer(WireMessage message) {
         return message.getSequence() > mc.get(message.getSender(), message.getSender());
     }
@@ -202,7 +214,7 @@ public class CausalMulticast {
         // a sequência de seu requisito causal.
         //
         // Exemplo:
-        // Na primeira mensagem, o emissor envia VC[sender] = 0, 
+        // Na primeira mensagem, o emissor envia VC[sender] = 0,
         // porém seu requisito causal é -1.
         if (message.getSequence() != mc.get(self.getId(), theirId) + 1) {
             return false;
@@ -224,7 +236,7 @@ public class CausalMulticast {
         }
 
         // Caso eu tenha descoberto um processo que o remetente ainda não
-        // conhece, ele nunca caíra nessa comparação. 
+        // conhece, ele nunca caíra nessa comparação.
         // Porém, isso não importa, pois é como se ele tivesse -1 para esse
         // processo, e e eu terei X, o que torna sempre entregável.
 
@@ -265,11 +277,13 @@ public class CausalMulticast {
      * envio das primeiras mensagens, quando o grupo já está fixado.
      */
     private synchronized void addParticipant(Participant participant) {
+        // Evita registrar participantes duplicados
         Participant stored = participants.get(participant.getId());
 
         if (stored == null) {
             if (locked) {
-                System.err.printf("[AVISO] participante %s não pode ser adicionado após envio de mensagens.\n", participant);
+                System.err.printf("[AVISO] participante %s não pode ser adicionado após envio de mensagens.\n",
+                        participant);
                 return;
             }
 
@@ -287,15 +301,22 @@ public class CausalMulticast {
 
         if (participant != null && !participant.isDisabled()) {
             participant.disable();
+
+            // Remove a linha do participante da matriz para que mensagens pendentes
+            // não fiquem aguardando confirmação de um processo que já saiu
             mc.remove(id);
 
             listener.onParticipantLeft(participant);
 
+            // A saída pode ter tornado mensagens estáveis; reavalia o descarte
             attemptDiscard();
         }
     }
 
-    /** Trata mensagens de descoberta, adicionando (HELLO) ou removendo (BYE) participantes. */
+    /**
+     * Trata mensagens de descoberta, adicionando (HELLO) ou removendo (BYE)
+     * participantes.
+     */
     private synchronized void onDiscoveryMessage(DiscoveryMessage message) {
         Participant other = new Participant(message.getSenderIp(), message.getSenderPort());
 
@@ -311,6 +332,7 @@ public class CausalMulticast {
      * matriz de relógios, deposita no buffer e dispara entrega e descarte.
      */
     private synchronized void onMessageReceived(WireMessage message) {
+        // Impede que novos participantes entrem após o início do tráfego de mensagens
         this.locked = true;
 
         listener.onMessageReceived(message);
@@ -327,15 +349,19 @@ public class CausalMulticast {
             return;
         }
 
+        // Deposita no buffer antes de tentar entregar, garantindo que a mensagem
+        // esteja disponível para as verificações de ordem causal
         buffer.add(message);
         listener.onMessageDeposited(message);
         listener.onBufferUpdated(new ArrayList<>(buffer));
 
+        // Atualiza o conhecimento local sobre o histórico do remetente
         if (isMessageNewer(message)) {
             mc.set(message.getSender(), message.getVC());
             listener.onMatrixClockUpdated(new MatrixClock(mc));
         }
 
+        // Tenta entregar mensagens em ordem causal e, em seguida, descartar as estáveis
         attemptDelivery();
         attemptDiscard();
     }
@@ -345,6 +371,7 @@ public class CausalMulticast {
      * este processo, ou envia pela rede caso contrário.
      */
     private synchronized void onTransmissionDispatched(DeferredTransmission transmission) {
+        // Se o destino for este processo, processa localmente em vez de usar a rede
         if (transmission.getTarget().equals(self)) {
             onMessageReceived(transmission.getMessage());
         } else {
@@ -368,28 +395,35 @@ public class CausalMulticast {
         }
 
         /** Mensagem recebida da rede, antes de qualquer processamento. */
-        default void onMessageReceived(WireMessage message) {}
+        default void onMessageReceived(WireMessage message) {
+        }
 
         /** Mensagem entregue à aplicação na ordem causal. */
-        default void onMessageDelivered(WireMessage message) {}
+        default void onMessageDelivered(WireMessage message) {
+        }
 
         /** Mensagem depositada no buffer. */
-        default void onMessageDeposited(WireMessage message) {}
+        default void onMessageDeposited(WireMessage message) {
+        }
 
         /** Mensagem descartada do buffer por ter se tornado estável. */
-        default void onMessageDiscarded(WireMessage message) {}
+        default void onMessageDiscarded(WireMessage message) {
+        }
 
         /** Novo participante descoberto no grupo. */
-        default void onParticipantJoined(Participant participant) {}
+        default void onParticipantJoined(Participant participant) {
+        }
 
         /** Participante saiu do grupo. */
-        default void onParticipantLeft(Participant participant) {}
+        default void onParticipantLeft(Participant participant) {
+        }
 
         /** A matriz de relógios foi atualizada. */
-        default void onMatrixClockUpdated(MatrixClock clock) {}
+        default void onMatrixClockUpdated(MatrixClock clock) {
+        }
 
         /** O conteúdo do buffer mudou. */
-        default void onBufferUpdated(List<WireMessage> buffer) {}
+        default void onBufferUpdated(List<WireMessage> buffer) {
+        }
     }
 }
-
