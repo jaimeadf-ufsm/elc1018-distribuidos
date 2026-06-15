@@ -5,16 +5,6 @@ import java.util.*;
 
 /**
  * Middleware de multicast causal.
- *
- * <p>Garante que as mensagens enviadas ao grupo sejam entregues à aplicação
- * respeitando a ordem causal, independentemente da ordem de chegada pela rede.
- * Mensagens recebidas são guardadas em um buffer, entregues quando seus
- * requisitos causais são satisfeitos e descartadas quando se tornam estáveis
- * (recebidas por todos os participantes).
- *
- * <p>A ordenação usa um {@link MatrixClock}: cada linha registra o que um
- * participante já recebeu de cada outro. Os participantes são descobertos
- * dinamicamente pelo {@link DiscoveryService}.
  */
 public class CausalMulticast {
     private final ICausalMulticast client;
@@ -337,15 +327,14 @@ public class CausalMulticast {
             return;
         }
 
+        buffer.add(message);
+        listener.onMessageDeposited(message);
+        listener.onBufferUpdated(new ArrayList<>(buffer));
+
         if (isMessageNewer(message)) {
             mc.set(message.getSender(), message.getVC());
             listener.onMatrixClockUpdated(new MatrixClock(mc));
         }
-
-        buffer.add(message);
-
-        listener.onMessageDeposited(message);
-        listener.onBufferUpdated(new ArrayList<>(buffer));
 
         attemptDelivery();
         attemptDiscard();
