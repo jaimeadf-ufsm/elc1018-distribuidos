@@ -118,7 +118,8 @@ public class Client implements ICausalMulticast {
         return ids;
     }
 
-    private class MiddlewareEvents extends CausalEventListener {
+    /** Ouve os eventos do middleware. */
+    private class MiddlewareEvents implements CausalMulticast.EventListener {
         @Override
         public void onTransmission(DeferredTransmission transmission) {
             int id = pending.register(transmission);

@@ -30,7 +30,7 @@ public class CausalMulticast {
 
     private final DiscoveryService discovery;
 
-    private CausalEventListener listener;
+    private EventListener listener;
 
     private boolean locked;
 
@@ -57,7 +57,7 @@ public class CausalMulticast {
 
         this.discovery = new DiscoveryService(self, this::onDiscoveryMessage);
 
-        this.listener = new CausalEventListener();
+        this.listener = new EventListener() {};
 
         this.locked = false;
 
@@ -103,7 +103,7 @@ public class CausalMulticast {
      *
      * @param listener observador a ser notificado
      */
-    public synchronized void intercept(CausalEventListener listener) {
+    public synchronized void intercept(EventListener listener) {
         this.listener = listener;
     }
 
@@ -365,6 +365,42 @@ public class CausalMulticast {
                 e.printStackTrace();
             }
         }
+    }
+
+    /**
+     * Observador de eventos do middleware.
+     */
+    public interface EventListener {
+        /**
+         * Chamado para cada destinatário de uma mensagem enviada.
+         */
+        default void onTransmission(DeferredTransmission transmission) {
+            transmission.dispatch();
+        }
+
+        /** Mensagem recebida da rede, antes de qualquer processamento. */
+        default void onMessageReceived(WireMessage message) {}
+
+        /** Mensagem entregue à aplicação na ordem causal. */
+        default void onMessageDelivered(WireMessage message) {}
+
+        /** Mensagem depositada no buffer. */
+        default void onMessageDeposited(WireMessage message) {}
+
+        /** Mensagem descartada do buffer por ter se tornado estável. */
+        default void onMessageDiscarded(WireMessage message) {}
+
+        /** Novo participante descoberto no grupo. */
+        default void onParticipantJoined(Participant participant) {}
+
+        /** Participante saiu do grupo. */
+        default void onParticipantLeft(Participant participant) {}
+
+        /** A matriz de relógios foi atualizada. */
+        default void onMatrixClockUpdated(MatrixClock clock) {}
+
+        /** O conteúdo do buffer mudou. */
+        default void onBufferUpdated(List<WireMessage> buffer) {}
     }
 }
 
