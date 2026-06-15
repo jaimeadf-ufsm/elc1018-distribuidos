@@ -39,7 +39,7 @@ class MessageReceiver {
                 byte[] received = Arrays.copyOf(packet.getData(), packet.getLength());
 
                 try {
-                    listener.onMessageReceived(WireMessage.fromBytes(received));
+                    listener.onMessageReceived((WireMessage) Serialization.convertFromBytes(received));
                 } catch (IOException | ClassNotFoundException e) {
                     e.printStackTrace();
                 }

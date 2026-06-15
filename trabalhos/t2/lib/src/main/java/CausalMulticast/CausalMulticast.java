@@ -1,15 +1,13 @@
 package CausalMulticast;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+import java.io.IOException;
+import java.util.*;
 
 public class CausalMulticast {
     private final ICausalMulticast client;
 
     private final Participant self;
-    private final Set<Participant> participants;
+    private final Map<String, Participant> participants;
 
     private final MatrixClock mc;
     private final List<WireMessage> buffer;
@@ -19,14 +17,16 @@ public class CausalMulticast {
 
     private final DiscoveryService discovery;
 
-    private CausalEventListener eventListener;
+    private CausalEventListener listener;
+
+    private boolean locked;
 
     public CausalMulticast(String ip, Integer port, ICausalMulticast client) {
         this.client = client;
 
         this.self = new Participant(ip, port);
-        this.participants = new TreeSet<>();
-        this.participants.add(this.self);
+        this.participants = new TreeMap<>();
+        this.participants.put(self.getId(), self);
 
         this.mc = new MatrixClock();
         this.buffer = new ArrayList<>();
@@ -34,9 +34,11 @@ public class CausalMulticast {
         this.sender = new MessageSender();
         this.receiver = new MessageReceiver(port, this::onMessageReceived);
 
-        this.discovery = new DiscoveryService(self, this::onParticipantDiscovered);
+        this.discovery = new DiscoveryService(self, this::onDiscoveryMessage);
 
-        this.eventListener = new CausalEventListener();
+        this.listener = new CausalEventListener();
+
+        this.locked = false;
 
         this.mc.increment(self.getId(), self.getId());
 
@@ -48,26 +50,26 @@ public class CausalMulticast {
         WireMessage msg = new WireMessage(self.getId(), new VectorClock(mc.get(self.getId())), message);
 
         mc.increment(self.getId(), self.getId());
-        eventListener.onMatrixClockUpdated(new MatrixClock(mc));
+        listener.onMatrixClockUpdated(new MatrixClock(mc));
 
         onMessageReceived(msg);
 
-        eventListener.onMesssageDelivered(msg);
+        listener.onMessageDelivered(msg);
         cliente.deliver(message);
 
-        for (Participant participant : participants) {
+        for (Participant participant : participants.values()) {
             if (participant.equals(self)) {
                 continue;
             }
 
-            Envelope envelope = new Envelope(participant, msg, this::onEnvelopeDispatched);
+            DeferredTransmission transmission = new DeferredTransmission(participant, msg, this::onTransmissionDispatched);
 
-            eventListener.onEnvelope(envelope);
+            listener.onTransmission(transmission);
         }
     }
 
     public synchronized void intercept(CausalEventListener listener) {
-        this.eventListener = listener;
+        this.listener = listener;
     }
     
     public synchronized void close() {
@@ -79,8 +81,8 @@ public class CausalMulticast {
         return self;
     }
 
-    public synchronized Set<Participant> getParticipants() {
-        return new TreeSet<>(participants);
+    public synchronized Map<String, Participant> getParticipants() {
+        return new TreeMap<>(participants);
     }
 
     public synchronized MatrixClock getMatrixClock() {
@@ -89,48 +91,6 @@ public class CausalMulticast {
 
     public synchronized List<WireMessage> getBuffer() {
         return new ArrayList<>(buffer);
-    }
-
-    private synchronized void onMessageReceived(WireMessage message) {
-        eventListener.onMessageReceived(message);
-
-        if (isMessageNewer(message)) {
-            mc.update(message.getSender(), message.getVC());
-            eventListener.onMatrixClockUpdated(new MatrixClock(mc));
-        }
-
-        buffer.add(message);
-
-        eventListener.onMessageDeposited(message);
-        eventListener.onBufferUpdated(new ArrayList<>(buffer));
-
-        attemptDelivery();
-        attemptDiscard();
-    }
-
-    private synchronized void onParticipantDiscovered(Participant participant) {
-        if (participants.contains(participant)) {
-            return;
-        }
-
-        participants.add(participant);
-
-        // Será que eu preciso receber o vetor também pela descoberta?
-        // mc.increment(self.getId(), participant.getId());
-
-        // Bloquear entrada de novos membros se eu já tiver recebido mensagens
-        // de outros membros?
-        // As mensagens terão já sido descartadas.
-
-        eventListener.onParticipantJoined(participant);
-    }
-
-    private synchronized void onEnvelopeDispatched(Envelope envelope) {
-        if (envelope.getRecipient().equals(self)) {
-            onMessageReceived(envelope.getMessage());
-        } else {
-            sender.send(envelope.getRecipient(), envelope.getMessage());
-        }
     }
 
     private synchronized void attemptDelivery() {
@@ -145,10 +105,10 @@ public class CausalMulticast {
 
                     if (!this.self.getId().equals(buffered.getSender())) {
                         mc.increment(self.getId(), buffered.getSender());
-                        eventListener.onMatrixClockUpdated(new MatrixClock(mc));
+                        listener.onMatrixClockUpdated(new MatrixClock(mc));
                     }
 
-                    eventListener.onMesssageDelivered(buffered);
+                    listener.onMessageDelivered(buffered);
 
                     try {
                         client.deliver(buffered.getContent());
@@ -173,18 +133,16 @@ public class CausalMulticast {
         buffer.removeAll(toRemove);
 
         for (WireMessage discarded : toRemove) {
-            eventListener.onMessageDiscarded(discarded);
+            listener.onMessageDiscarded(discarded);
         }
 
         if (!toRemove.isEmpty()) {
-            eventListener.onBufferUpdated(new ArrayList<>(buffer));
+            listener.onBufferUpdated(new ArrayList<>(buffer));
         }
     }
 
     private synchronized boolean isMessageNewer(WireMessage message) {
-        VectorClock messageVc = message.getVC();
-
-        return messageVc.get(message.getSender()) > mc.get(message.getSender(), message.getSender());
+        return message.getSequence() > mc.get(message.getSender(), message.getSender());
     }
     
     private synchronized boolean isMessageDeliverable(WireMessage message) {
@@ -220,13 +178,79 @@ public class CausalMulticast {
         String theirId = message.getSender();
         VectorClock theirVc = message.getVC();
 
-        for (Participant participant : participants) {
+        for (Participant participant : participants.values()) {
             if (theirVc.get(theirId) > mc.get(participant.getId(), theirId)) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private synchronized void addParticipant(Participant participant) {
+        Participant stored = participants.get(participant.getId());
+
+        if (stored == null) {
+            if (locked) {
+                System.err.printf("[ERRO] participante %s não pode ser adicionado após envio de mensagens.\n", participant);
+                return;
+            }
+
+            participants.put(participant.getId(), participant);
+            listener.onParticipantJoined(participant);
+        }
+    }
+
+    private synchronized void removeParticipant(String id) {
+        Participant participant = participants.get(id);
+
+        if (participant != null && !participant.isDisabled()) {
+            participant.disable();
+            mc.remove(id);
+
+            listener.onParticipantLeft(participant);
+        }
+    }
+
+    private synchronized void onDiscoveryMessage(DiscoveryMessage message) {
+        Participant other = new Participant(message.getSenderIp(), message.getSenderPort());
+
+        if (message.isHello()) {
+            addParticipant(other);
+        } else if (message.isBye()) {
+            removeParticipant(other.getId());
+        }
+    }
+
+    private synchronized void onMessageReceived(WireMessage message) {
+        this.locked = true;
+
+        listener.onMessageReceived(message);
+
+        if (isMessageNewer(message)) {
+            mc.set(message.getSender(), message.getVC());
+            listener.onMatrixClockUpdated(new MatrixClock(mc));
+        }
+
+        buffer.add(message);
+
+        listener.onMessageDeposited(message);
+        listener.onBufferUpdated(new ArrayList<>(buffer));
+
+        attemptDelivery();
+        attemptDiscard();
+    }
+
+    private synchronized void onTransmissionDispatched(DeferredTransmission transmission) {
+        if (transmission.getTarget().equals(self)) {
+            onMessageReceived(transmission.getMessage());
+        } else {
+            try {
+                sender.send(transmission.getTarget(), transmission.getMessage());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
 

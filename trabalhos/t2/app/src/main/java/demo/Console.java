@@ -1,8 +1,8 @@
 package demo;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import CausalMulticast.*;
 
@@ -32,17 +32,13 @@ public final class Console {
         System.out.println();
     }
 
-    public void transmissionRetained(int id, Envelope envelope) {
-        WireMessage message = envelope.getMessage();
+    public void transmissionRetained(int id, DeferredTransmission transmission) {
+        WireMessage message = transmission.getMessage();
 
-        System.out.println(Ansi.paint(String.format("→ transmissão #%-3d %s → %s  \"%s\"",
-                id,
-                shortMessageId(message),
-                shortParticipantId(envelope.getRecipient()),
-                message.getContent()), Ansi.YELLOW));
+        System.out.println(Ansi.paint(String.format("→ transmissão #%-3d %s → %s  \"%s\"", id, shortMessageId(message), shortParticipantId(transmission.getTarget()), message.getContent()), Ansi.YELLOW));
     }
 
-    public void message(WireMessage message, Set<Participant> participants) {
+    public void message(WireMessage message, Collection<Participant> participants) {
         StringBuilder block = new StringBuilder();
 
         block.append(header("mensagem " + shortMessageId(message), Ansi.BLUE));
@@ -70,33 +66,34 @@ public final class Console {
 
         StringBuilder block = new StringBuilder(header("transmissões pendentes (" + count + ")", Ansi.YELLOW));
 
-        for (Map.Entry<Integer, Envelope> entry : pending.entries()) {
+        for (Map.Entry<Integer, DeferredTransmission> entry : pending.entries()) {
             WireMessage message = entry.getValue().getMessage();
 
             block.append("\n").append(row(String.format("#%-3d %s → %s  \"%s\"",
                     entry.getKey(),
                     shortMessageId(message),
-                    shortParticipantId(entry.getValue().getRecipient()),
+                    shortParticipantId(entry.getValue().getTarget()),
                     message.getContent())));
         }
 
         printBlock(block.toString());
     }
 
-    public void matrixClock(MatrixClock clock, Set<Participant> participants) {
+    public void matrixClock(MatrixClock clock, Collection<Participant> participants) {
         StringBuilder block = new StringBuilder(header("matriz de relógios", Ansi.MAGENTA));
-
         StringBuilder head = new StringBuilder(lpad("", CLOCK_WIDTH));
+
         for (Participant p : participants) {
             head.append(" ").append(Ansi.paint(lpad(shortParticipantId(p), CLOCK_WIDTH), Ansi.DIM));
         }
+
         block.append("\n").append(row(head.toString()));
 
         for (Participant p : participants) {
             StringBuilder line = new StringBuilder(Ansi.paint(lpad(shortParticipantId(p), CLOCK_WIDTH), Ansi.DIM));
 
             for (Participant q : participants) {
-                line.append(" ").append(lpad(formatClockValue(clock.get(p.getId(), q.getId())), CLOCK_WIDTH));
+                line.append(" ").append(lpad(clockValue(clock.get(p.getId(), q.getId())), CLOCK_WIDTH));
             }
 
             block.append("\n").append(row(line.toString()));
@@ -105,20 +102,32 @@ public final class Console {
         printBlock(block.toString());
     }
 
-    public void delivered(WireMessage message) {
-        logMessage("✓", "entregue", message, Ansi.GREEN);
+    public void messageDelivered(WireMessage message) {
+        messageAction("✓", "entregue", message, Ansi.GREEN);
     }
 
-    public void deposited(WireMessage message) {
-        logMessage("+", "depositada", message, Ansi.CYAN);
+    public void messageDeposited(WireMessage message) {
+        messageAction("+", "depositada", message, Ansi.CYAN);
     }
 
-    public void discarded(WireMessage message) {
-        logMessage("-", "descartada", message, Ansi.GRAY);
+    public void messageDiscarded(WireMessage message) {
+        messageAction("-", "descartada", message, Ansi.GRAY);
+    }
+
+    public void messageAction(String symbol, String verb, WireMessage message, String color) {
+        System.out.println(Ansi.paint(String.format("%s %-10s %-9s \"%s\"", symbol, verb, shortMessageId(message), message.getContent()), color));
     }
 
     public void participantJoined(Participant participant) {
-        System.out.println(Ansi.paint("● processo " + participant + " ingressou", Ansi.MAGENTA));
+        participantAction("+", "ingressou", participant, Ansi.MAGENTA);
+    }
+
+    public void participantLeft(Participant participant) {
+        participantAction("-", "saiu", participant, Ansi.MAGENTA);
+    }
+
+    public void participantAction(String symbol, String verb, Participant participant, String color) {
+        System.out.println(Ansi.paint(String.format("%s %-10s %s", symbol, verb, participant), color));
     }
 
     public void warn(String text) {
@@ -130,16 +139,11 @@ public final class Console {
                 + Ansi.paint("  (use /ajuda)", Ansi.DIM));
     }
 
-    private void logMessage(String symbol, String verb, WireMessage message, String color) {
-        System.out.println(Ansi.paint(String.format("%s %-10s %-9s \"%s\"",
-                symbol, verb, shortMessageId(message), message.getContent()), color));
-    }
-
-    private String vectorClock(VectorClock vc, Set<Participant> participants) {
+    private String vectorClock(VectorClock vc, Collection<Participant> participants) {
         StringBuilder builder = new StringBuilder();
 
         for (Participant p : participants) {
-            builder.append(String.format("%s=%s  ", shortParticipantId(p), formatClockValue(vc.get(p.getId()))));
+            builder.append(String.format("%s=%s  ", shortParticipantId(p), clockValue(vc.get(p.getId()))));
         }
 
         return builder.toString().trim();
@@ -165,7 +169,7 @@ public final class Console {
         return String.format("%" + width + "s", value);
     }
 
-    private static String formatClockValue(int value) {
+    private static String clockValue(int value) {
         return value == -1 ? "-" : Integer.toString(value);
     }
 

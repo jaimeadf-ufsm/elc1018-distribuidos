@@ -10,14 +10,8 @@ class MessageSender {
         
     }
 
-    public void send(Participant participant, WireMessage message) {
-        byte[] data;
-
-        try {
-            data = message.toBytes();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    public void send(Participant participant, WireMessage message) throws IOException {
+        byte[] data = Serialization.convertToBytes(message);
 
         try (DatagramSocket socket = new DatagramSocket()) {
             InetAddress address = InetAddress.getByName(participant.getIp());

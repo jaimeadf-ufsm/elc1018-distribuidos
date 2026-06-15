@@ -1,13 +1,9 @@
 package CausalMulticast;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
+import java.io.*;
 
 public class WireMessage implements Serializable {
+    @Serial
     private static final long serialVersionUID = 1L;
 
     private final String sender;
@@ -37,26 +33,8 @@ public class WireMessage implements Serializable {
         return vc.get(sender);
     }
 
-    public byte[] toBytes() throws IOException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-
-        try (ObjectOutputStream out = new ObjectOutputStream(bos)) {
-            out.writeObject(this);
-        }
-
-        return bos.toByteArray();
-    }
-
     @Override
     public String toString() {
         return sender + "[" + vc.get(sender) + "]";
-    }
-
-    public static WireMessage fromBytes(byte[] data) throws IOException, ClassNotFoundException {
-        ByteArrayInputStream bis = new ByteArrayInputStream(data);
-
-        try (ObjectInputStream in = new ObjectInputStream(bis)) {
-            return (WireMessage) in.readObject();
-        }
     }
 }

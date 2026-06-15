@@ -16,12 +16,12 @@ public class VectorClock implements Serializable {
         this.vector = new HashMap<>(other.vector);
     }
 
-    public synchronized int get(String participantId) {
-        return vector.getOrDefault(participantId, -1);
+    public synchronized int get(String id) {
+        return vector.getOrDefault(id, -1);
     }
 
-    public synchronized void increment(String participantId) {
-        vector.put(participantId, get(participantId) + 1);
+    public synchronized void increment(String id) {
+        vector.put(id, get(id) + 1);
     }
 
     public synchronized Set<String> keys() {

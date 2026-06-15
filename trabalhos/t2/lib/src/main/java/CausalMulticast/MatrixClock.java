@@ -26,8 +26,12 @@ public class MatrixClock {
         return get(myId).get(theirId);
     }
 
-    public synchronized void update(String myId, VectorClock theirVc) {
+    public synchronized void set(String myId, VectorClock theirVc) {
         matrix.put(myId, theirVc);
+    }
+
+    public synchronized void remove(String myId) {
+        this.matrix.remove(myId);
     }
 
     public synchronized void increment(String myId, String theirId) {

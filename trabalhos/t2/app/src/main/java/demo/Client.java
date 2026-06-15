@@ -61,7 +61,6 @@ public class Client implements ICausalMulticast {
                 switch (command) {
                     case "/enviar" -> middleware.mcsend(arg, this);
                     case "/trans" -> transmit(arg);
-                    case "/buffer" -> console.buffer(middleware.getBuffer());
                     case "/pendente" -> console.pendingTransmissions(pending);
                     case "/ajuda" -> console.help();
                     case "/sair" -> running = false;
@@ -75,10 +74,10 @@ public class Client implements ICausalMulticast {
 
     private void transmit(String spec) {
         for (int id : parseIds(spec)) {
-            Envelope envelope = pending.remove(id);
+            DeferredTransmission transmission = pending.remove(id);
 
-            if (envelope != null) {
-                envelope.dispatch();
+            if (transmission != null) {
+                transmission.dispatch();
             } else {
                 console.warn(String.format("transmissão #%d não encontrada", id));
             }
@@ -120,44 +119,49 @@ public class Client implements ICausalMulticast {
 
     private class MiddlewareEvents extends CausalEventListener {
         @Override
-        public void onEnvelope(Envelope envelope) {
-            int id = pending.register(envelope);
-            console.transmissionRetained(id, envelope);
-        }
-
-        @Override
-        public void onMatrixClockUpdated(MatrixClock clock) {
-            console.matrixClock(clock, middleware.getParticipants());
+        public void onTransmission(DeferredTransmission transmission) {
+            int id = pending.register(transmission);
+            console.transmissionRetained(id, transmission);
         }
 
         @Override
         public void onMessageReceived(WireMessage message) {
-            console.message(message, middleware.getParticipants());
+            console.message(message, middleware.getParticipants().values());
         }
 
         @Override
-        public void onMesssageDelivered(WireMessage message) {
-            console.delivered(message);
+        public void onMessageDelivered(WireMessage message) {
+            console.messageDelivered(message);
         }
 
         @Override
         public void onMessageDeposited(WireMessage message) {
-            console.deposited(message);
+            console.messageDeposited(message);
         }
 
         @Override
         public void onMessageDiscarded(WireMessage message) {
-            console.discarded(message);
-        }
-
-        @Override
-        public void onBufferUpdated(List<WireMessage> buffer) {
-            console.buffer(buffer);
+            console.messageDiscarded(message);
         }
 
         @Override
         public void onParticipantJoined(Participant participant) {
             console.participantJoined(participant);
+        }
+
+        @Override
+        public void onParticipantLeft(Participant participant) {
+            console.participantLeft(participant);
+        }
+
+        @Override
+        public void onMatrixClockUpdated(MatrixClock clock) {
+            console.matrixClock(clock, middleware.getParticipants().values());
+        }
+
+        @Override
+        public void onBufferUpdated(List<WireMessage> buffer) {
+            console.buffer(buffer);
         }
     }
 }
