@@ -35,7 +35,7 @@ public final class PendingTransmissions {
         return transmissions.entrySet();
     }
 
-    public boolean isEmpty() {
+    public boolean empty() {
         return transmissions.isEmpty();
     }
 

@@ -62,7 +62,7 @@ public final class Console {
     }
 
     public void pendingTransmissions(PendingTransmissions pending) {
-        String count = pending.isEmpty() ? "nenhuma" : Integer.toString(pending.size());
+        String count = pending.empty() ? "nenhuma" : Integer.toString(pending.size());
 
         StringBuilder block = new StringBuilder(header("transmissões pendentes (" + count + ")", Ansi.YELLOW));
 
