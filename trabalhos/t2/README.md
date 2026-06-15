@@ -6,6 +6,13 @@ independentemente da ordem em que chegam pela rede. Enquanto não podem ser
 entregues, as mensagens ficam em um buffer, de onde são descartadas apenas
 quando se tornam estáveis, isto é, recebidas por todos os participantes.
 
+## Estrutura
+
+Projeto Gradle com dois módulos: 
+
+- `lib/` (o *middleware*).
+- `app/` (o cliente interativo de terminal).
+
 ## Execução
 
 Em cada terminal, inicie um participante com seu endereço e porta:
