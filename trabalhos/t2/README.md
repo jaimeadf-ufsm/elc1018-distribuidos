@@ -27,7 +27,7 @@ Em cada terminal, inicie um participante com seu endereço e porta:
 | Comando         | Descrição                                       |
 | --------------- | ----------------------------------------------- |
 | `/enviar <msg>` | envia uma mensagem para o grupo                 |
-| `/libera <ids>` | libera transmissões retidas (ex.: `1` ou `1-3`) |
+| `/liberar <ids>` | libera transmissões retidas (ex.: `1` ou `1-3`) |
 | `/retidas`      | lista as transmissões retidas                   |
 | `/ajuda`        | mostra a ajuda                                  |
 | `/sair`         | encerra o cliente                               |

@@ -26,7 +26,7 @@ public final class Console {
         System.out.println(row(command("/enviar <msg>", "envia uma mensagem para o grupo")));
         System.out.println(row(command("/transmitir <ids>", "transmite retidas (ex: 1 ou 1-3)")));
         System.out.println(row(command("/retidas", "lista as transmissões retidas")));
-        System.out.println(row(command("/ajuda", "mostra esta ajuda")));
+        System.out.println(row(command("/liberar", "mostra esta ajuda")));
         System.out.println(row(command("/sair", "encerra o cliente")));
         System.out.println();
     }

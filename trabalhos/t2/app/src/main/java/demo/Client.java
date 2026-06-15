@@ -61,7 +61,7 @@ public class Client implements ICausalMulticast {
 
                 switch (command) {
                     case "/enviar" -> middleware.mcsend(arg, this);
-                    case "/transmitir" -> transmit(arg);
+                    case "/liberar" -> transmit(arg);
                     case "/retidas" -> console.pendingTransmissions(pending);
                     case "/ajuda" -> console.help();
                     case "/sair" -> running = false;
