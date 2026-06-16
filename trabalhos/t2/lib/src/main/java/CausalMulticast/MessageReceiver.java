@@ -13,6 +13,9 @@ class MessageReceiver {
     /** Receptor das mensagens recebidas. */
     private final Listener listener;
 
+    /** Socket UDP, mantido para poder ser fechado no encerramento. */
+    private DatagramSocket socket;
+
     /** Indica que o laço de recepção está ativo. */
     private boolean running;
 
@@ -36,14 +39,20 @@ class MessageReceiver {
         new Thread(this::listenMessageLoop).start();
     }
 
-    /** Interrompe o laço de recepção. */
+    /** Interrompe o laço de recepção, fechando o socket para desbloquear a escuta. */
     public void stop() {
         this.running = false;
+
+        if (socket != null) {
+            socket.close();
+        }
     }
 
     /** Laço que recebe pacotes UDP, desserializa e os repassa ao receptor. */
     private void listenMessageLoop() {
         try (DatagramSocket socket = new DatagramSocket(port)) {
+            this.socket = socket;
+
             byte[] buffer = new byte[65507];
 
             while (this.running) {
@@ -59,7 +68,11 @@ class MessageReceiver {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            // O fechamento do socket em stop() interrompe o receive() com uma
+            // exceção.
+            if (this.running) {
+                e.printStackTrace();
+            }
         }
     }
 

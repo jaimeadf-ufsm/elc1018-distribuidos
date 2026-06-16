@@ -22,6 +22,9 @@ class DiscoveryService {
     /** Receptor das mensagens de descoberta recebidas. */
     private final EventListener listener;
 
+    /** Socket multicast, mantido para poder ser fechado no encerramento. */
+    private MulticastSocket socket;
+
     /** Indica que os laços de anúncio e escuta estão ativos. */
     private boolean running;
 
@@ -63,6 +66,10 @@ class DiscoveryService {
     /** Interrompe os laços, enviando {@code BYE}. */
     public void stop() {
         this.running = false;
+
+        if (socket != null) {
+            socket.close();
+        }
     }
 
     /**
@@ -95,9 +102,11 @@ class DiscoveryService {
     @SuppressWarnings("deprecation")
     private void listenLoop() {
         try (MulticastSocket socket = new MulticastSocket(multicastPort)) {
+            this.socket = socket;
+
             InetAddress group = InetAddress.getByName(multicastIp);
 
-            socket.joinGroup(group); 
+            socket.joinGroup(group);
 
             byte[] buffer = new byte[65507];
 
@@ -114,7 +123,11 @@ class DiscoveryService {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            // O fechamento do socket em stop() interrompe o receive() com uma
+            // exceção.
+            if (this.running) {
+                e.printStackTrace();
+            }
         }
     }
 
