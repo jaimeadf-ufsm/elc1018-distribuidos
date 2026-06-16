@@ -195,7 +195,7 @@ public class Client implements ICausalMulticast {
 
         /** Exibe o conteúdo atualizado do buffer. */
         @Override
-        public void onBufferUpdated(List<WireMessage> buffer) {
+        public void onMessageBufferUpdated(List<WireMessage> buffer) {
             console.buffer(buffer);
         }
     }

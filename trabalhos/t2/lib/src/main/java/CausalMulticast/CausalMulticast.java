@@ -136,7 +136,7 @@ public class CausalMulticast {
     }
 
     /** @return cópia das mensagens atualmente no buffer */
-    public synchronized List<WireMessage> getBuffer() {
+    public synchronized List<WireMessage> getMessageBuffer() {
         return new ArrayList<>(buffer);
     }
 
@@ -195,7 +195,7 @@ public class CausalMulticast {
         }
 
         if (!toRemove.isEmpty()) {
-            listener.onBufferUpdated(new ArrayList<>(buffer));
+            listener.onMessageBufferUpdated(new ArrayList<>(buffer));
         }
     }
 
@@ -305,6 +305,7 @@ public class CausalMulticast {
 
             participants.put(participant.getId(), participant);
             listener.onParticipantJoined(participant);
+            listener.onMatrixClockUpdated(new MatrixClock(mc));
         }
     }
 
@@ -324,6 +325,7 @@ public class CausalMulticast {
             // preservar a ordenação causal.
             mc.remove(id);
             listener.onParticipantLeft(participant);
+            listener.onMatrixClockUpdated(new MatrixClock(mc));
 
             // Reavalia o descarte, pois a saída de um participante pode tornar
             // mensagens estáveis.
@@ -375,7 +377,7 @@ public class CausalMulticast {
         // esteja disponível para as verificações de ordem causal
         buffer.add(message);
         listener.onMessageDeposited(message);
-        listener.onBufferUpdated(new ArrayList<>(buffer));
+        listener.onMessageBufferUpdated(new ArrayList<>(buffer));
 
         // Atualiza o conhecimento local sobre o histórico do remetente
         if (isMessageNewer(message)) {
@@ -482,7 +484,7 @@ public class CausalMulticast {
          *
          * @param buffer cópia das mensagens atualmente no buffer
          */
-        default void onBufferUpdated(List<WireMessage> buffer) {
+        default void onMessageBufferUpdated(List<WireMessage> buffer) {
         }
     }
 }
