@@ -401,11 +401,7 @@ public class CausalMulticast {
         if (transmission.getTarget().equals(self)) {
             onMessageReceived(transmission.getMessage());
         } else {
-            try {
-                sender.send(transmission.getTarget(), transmission.getMessage());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            sender.send(transmission.getTarget(), transmission.getMessage());
         }
     }
 
