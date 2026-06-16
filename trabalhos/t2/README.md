@@ -1,5 +1,7 @@
 # Trabalho 2 de Sistemas Distribuídos (ELC1018)
 
+Integrantes: Jaime Antonio Daniel Filho e Diego Ribeiro Chaves
+
 Implementa um *middleware* de multicast causal: mensagens enviadas a um grupo
 de processos são entregues à aplicação respeitando a ordem causal,
 independentemente da ordem em que chegam pela rede. Enquanto não podem ser
