@@ -4,20 +4,40 @@ package demo;
  * Pequeno utilitário para colorir a saída no terminal com códigos ANSI.
  */
 public final class Ansi {
+    /** Indica se a coloração está ativa. */
     private static final boolean ENABLED = System.getenv("NO_COLOR") == null;
 
-    private static final String CSI = "[";
+    /** Prefixo das sequências de escape ANSI. */
+    private static final String CSI ="[";
 
+    /** Remove toda a formatação. */
     public static final String RESET = "0m";
+
+    /** Negrito. */
     public static final String BOLD = "1m";
+
+    /** Esmaecido. */
     public static final String DIM = "2m";
 
+    /** Vermelho. */
     public static final String RED = "31m";
+
+    /** Verde. */
     public static final String GREEN = "32m";
+
+    /** Amarelo. */
     public static final String YELLOW = "33m";
+
+    /** Azul. */
     public static final String BLUE = "34m";
+
+    /** Magenta. */
     public static final String MAGENTA = "35m";
+
+    /** Ciano. */
     public static final String CYAN = "36m";
+
+    /** Cinza. */
     public static final String GRAY = "90m";
 
     private Ansi() {}

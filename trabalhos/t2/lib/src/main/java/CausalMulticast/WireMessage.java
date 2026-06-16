@@ -7,14 +7,26 @@ import java.io.*;
  * momento do envio e o conteúdo.
  */
 public class WireMessage implements Serializable {
+    /** Versão da classe para a serialização. */
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /** Id do remetente. */
     private final String sender;
+
+    /** Relógio vetorial do remetente no momento do envio. */
     private final VectorClock vc;
 
+    /** Conteúdo da mensagem. */
     private final String content;
 
+    /**
+     * Cria uma mensagem.
+     *
+     * @param senderId id do remetente
+     * @param senderVc relógio vetorial do remetente no momento do envio
+     * @param content  conteúdo da mensagem
+     */
     public WireMessage(String senderId, VectorClock senderVc, String content) {
         this.sender = senderId;
         this.vc = senderVc;
@@ -41,6 +53,7 @@ public class WireMessage implements Serializable {
         return vc.get(sender);
     }
 
+    /** @return representação curta no formato {@code remetente[sequência]} */
     @Override
     public String toString() {
         return sender + "[" + vc.get(sender) + "]";

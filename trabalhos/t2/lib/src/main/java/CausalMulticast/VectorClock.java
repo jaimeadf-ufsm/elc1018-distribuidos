@@ -10,6 +10,7 @@ import java.util.Set;
  * observadas dele.
  */
 public class VectorClock implements Serializable {
+    /** Contagem de mensagens observadas de cada participante, indexada pelo id. */
     private final Map<String, Integer> vector;
 
     /** Cria um relógio vazio. */
@@ -17,7 +18,11 @@ public class VectorClock implements Serializable {
         this.vector = new HashMap<>();
     }
 
-    /** Cria uma cópia independente de outro relógio. */
+    /**
+     * Cria uma cópia independente de outro relógio.
+     *
+     * @param other relógio a copiar
+     */
     public VectorClock(VectorClock other) {
         this.vector = new HashMap<>(other.vector);
     }

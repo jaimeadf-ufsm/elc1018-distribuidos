@@ -7,15 +7,25 @@ import java.util.Set;
 
 import CausalMulticast.*;
 
-/**
- * Cliente interativo do multicast.
- */
+/** Cliente interativo do multicast. */
 public class Client implements ICausalMulticast {
+    /** Saída usada para exibir o estado. */
     private final Console console;
+
+    /** Registro das transmissões retidas aguardando liberação. */
     private final PendingTransmissions pending = new PendingTransmissions();
 
+    /** Middleware de multicast causal. */
     private final CausalMulticast middleware;
 
+    /**
+     * Cria o cliente e inicia o middleware, registrando-se como observador dos
+     * seus eventos.
+     *
+     * @param ip      endereço local
+     * @param port    porta local
+     * @param console saída usada para exibir o estado
+     */
     public Client(String ip, int port, Console console) {
         this.console = console;
         this.middleware = new CausalMulticast(ip, port, this);
@@ -43,6 +53,12 @@ public class Client implements ICausalMulticast {
         new Client(ip, port, console).start();
     }
 
+    /**
+     * Recebe a mensagem entregue pelo middleware. A entrega é apenas sinalizada
+     * na tela (ver {@code onMessageDelivered}), por isso o corpo é vazio.
+     *
+     * @param message conteúdo entregue
+     */
     @Override
     public void deliver(String message) {
         // A entrega à aplicação é apenas sinalizada na tela (ver onMesssageDelivered).
@@ -73,7 +89,11 @@ public class Client implements ICausalMulticast {
         middleware.close();
     }
 
-    /** Libera as transmissões retidas cujos ids são indicados no argumento. */
+    /**
+     * Libera as transmissões retidas cujos ids são indicados no argumento.
+     *
+     * @param spec ids das transmissões a liberar (ex.: {@code "1 3 5-7"})
+     */
     private void transmit(String spec) {
         for (int id : parseIds(spec)) {
             DeferredTransmission transmission = pending.remove(id);
@@ -88,7 +108,11 @@ public class Client implements ICausalMulticast {
 
     /**
      * Interpreta uma lista de identificadores separados por espaço, aceitando
-     * faixas no formato "início-fim" (ex.: "1 3 5-7").
+     * faixas no formato "início-fim" (ex.: "1 3 5-7"). Tokens inválidos são
+     * ignorados.
+     *
+     * @param spec texto com os ids e faixas
+     * @return ids interpretados, na ordem de leitura e sem repetições
      */
     private Set<Integer> parseIds(String spec) {
         Set<Integer> ids = new LinkedHashSet<>();
@@ -118,49 +142,58 @@ public class Client implements ICausalMulticast {
         return ids;
     }
 
-    /** Ouve os eventos do middleware. */
+    /** Ouve os eventos do middleware e os reflete no console. */
     private class MiddlewareEvents implements CausalMulticast.EventListener {
+        /** Retém a transmissão e a exibe na lista de pendentes. */
         @Override
         public void onTransmission(DeferredTransmission transmission) {
             int id = pending.register(transmission);
             console.transmission(id, transmission);
         }
 
+        /** Exibe os detalhes da mensagem recebida. */
         @Override
         public void onMessageReceived(WireMessage message) {
             console.message(message);
         }
 
+        /** Sinaliza a entrega da mensagem à aplicação. */
         @Override
         public void onMessageDelivered(WireMessage message) {
             console.messageDelivered(message);
         }
 
+        /** Sinaliza o depósito da mensagem no buffer. */
         @Override
         public void onMessageDeposited(WireMessage message) {
             console.messageDeposited(message);
         }
 
+        /** Sinaliza o descarte da mensagem do buffer. */
         @Override
         public void onMessageDiscarded(WireMessage message) {
             console.messageDiscarded(message);
         }
 
+        /** Sinaliza a entrada de um participante. */
         @Override
         public void onParticipantJoined(Participant participant) {
             console.participantJoined(participant);
         }
 
+        /** Sinaliza a saída de um participante. */
         @Override
         public void onParticipantLeft(Participant participant) {
             console.participantLeft(participant);
         }
 
+        /** Exibe a matriz de relógios atualizada. */
         @Override
         public void onMatrixClockUpdated(MatrixClock clock) {
             console.matrixClock(clock, middleware.getParticipants().values());
         }
 
+        /** Exibe o conteúdo atualizado do buffer. */
         @Override
         public void onBufferUpdated(List<WireMessage> buffer) {
             console.buffer(buffer);

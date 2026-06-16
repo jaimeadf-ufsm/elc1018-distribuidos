@@ -10,8 +10,10 @@ import CausalMulticast.DeferredTransmission;
  * Registro das transmissões retidas pelo cliente.
  */
 public final class PendingTransmissions {
+    /** Transmissões retidas, indexadas pelo id atribuído. */
     private final Map<Integer, DeferredTransmission> transmissions = new LinkedHashMap<>();
 
+    /** Próximo id a ser atribuído a uma transmissão. */
     private int nextId = 1;
 
     /**

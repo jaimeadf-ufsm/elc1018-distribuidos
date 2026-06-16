@@ -10,6 +10,7 @@ import java.util.Map;
  * ele sabe sobre o conhecimento dos demais.
  */
 public class MatrixClock {
+    /** Relógio vetorial de cada participante, indexado pelo seu id. */
     private final Map<String, VectorClock> matrix;
 
     /** Cria uma matriz vazia. */
@@ -17,7 +18,11 @@ public class MatrixClock {
         this.matrix = new HashMap<>();
     }
 
-    /** Cria uma cópia de outra matriz. */
+    /**
+     * Cria uma cópia de outra matriz.
+     *
+     * @param other matriz a copiar
+     */
     public MatrixClock(MatrixClock other) {
         this.matrix = new HashMap<>();
 

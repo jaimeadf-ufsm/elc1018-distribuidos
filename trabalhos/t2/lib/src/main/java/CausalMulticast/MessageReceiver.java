@@ -7,11 +7,21 @@ import java.util.Arrays;
 
 /** Escuta uma porta UDP e entrega as mensagens recebidas ao middleware. */
 class MessageReceiver {
+    /** Porta UDP escutada. */
     private final int port;
+
+    /** Receptor das mensagens recebidas. */
     private final Listener listener;
 
+    /** Indica que o laço de recepção está ativo. */
     private boolean running;
 
+    /**
+     * Cria o receptor.
+     *
+     * @param port     porta UDP a escutar
+     * @param listener receptor das mensagens recebidas
+     */
     public MessageReceiver(int port, Listener listener) {
         this.port = port;
         this.listener = listener;
@@ -31,6 +41,7 @@ class MessageReceiver {
         this.running = false;
     }
 
+    /** Laço que recebe pacotes UDP, desserializa e os repassa ao receptor. */
     private void listenMessageLoop() {
         try (DatagramSocket socket = new DatagramSocket(port)) {
             byte[] buffer = new byte[65507];
@@ -54,6 +65,11 @@ class MessageReceiver {
 
     /** Receptor das mensagens recebidas da rede. */
     public static interface Listener {
+        /**
+         * Chamado a cada mensagem recebida.
+         *
+         * @param message mensagem recebida
+         */
         void onMessageReceived(WireMessage message);
     }
 }

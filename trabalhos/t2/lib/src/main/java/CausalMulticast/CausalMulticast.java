@@ -7,21 +7,34 @@ import java.util.*;
  * Middleware de multicast causal.
  */
 public class CausalMulticast {
+    /** Aplicação que recebe as mensagens na ordem causal. */
     private final ICausalMulticast client;
 
+    /** Participante que representa este próprio processo. */
     private final Participant self;
+
+    /** Participantes conhecidos do grupo, indexados pelo id (ip:porta). */
     private final Map<String, Participant> participants;
 
+    /** Matriz de relógios que registra o que cada participante já recebeu. */
     private final MatrixClock mc;
+   
+    /** Mensagens recebidas que aguardam entrega ou ainda não são estáveis. */
     private final List<WireMessage> buffer;
 
+    /** Serviço auxiliar para enviar mensagens a um participante por UDP. */
     private final MessageSender sender;
+    
+    /** Serviço auxiliar para ouvir mensagens UDP recebidas em um porta. */
     private final MessageReceiver receiver;
 
+    /** Serviço auxiliar para broadcast de entradas e saídas de participantes. */
     private final DiscoveryService discovery;
 
+    /** Observador dos eventos internos do middleware. */
     private EventListener listener;
 
+    /** Indica que o grupo está formado e não aceita mais novos participantes. */
     private boolean locked;
 
     /**
@@ -47,8 +60,7 @@ public class CausalMulticast {
 
         this.discovery = new DiscoveryService(self, this::onDiscoveryMessage);
 
-        this.listener = new EventListener() {
-        };
+        this.listener = new EventListener() { };
 
         this.locked = false;
 
@@ -188,6 +200,7 @@ public class CausalMulticast {
     }
 
     /**
+     * @param message mensagem a verificar
      * @return {@code true} se a mensagem é mais nova do que a última conhecida do
      *         remetente
      */
@@ -200,6 +213,7 @@ public class CausalMulticast {
      * do remetente e todas as mensagens das quais ela depende causalmente já
      * devem ter sido recebidas.
      *
+     * @param message mensagem a verificar
      * @return {@code true} se a mensagem está pronta para entrega
      */
     private synchronized boolean isMessageDeliverable(WireMessage message) {
@@ -246,6 +260,7 @@ public class CausalMulticast {
      * Verifica se a mensagem é estável, ou seja, se todos os participantes
      * ativos já a receberam e portanto ela pode ser descartada do buffer.
      *
+     * @param message mensagem a verificar
      * @return {@code true} se a mensagem é estável
      */
     private synchronized boolean isMessageStable(WireMessage message) {
@@ -274,6 +289,8 @@ public class CausalMulticast {
     /**
      * Adiciona um participante recém-descoberto. Ignora a inclusão após o
      * envio das primeiras mensagens, quando o grupo já está fixado.
+     *
+     * @param participant participante a adicionar
      */
     private synchronized void addParticipant(Participant participant) {
         // Evita registrar participantes duplicados
@@ -293,6 +310,8 @@ public class CausalMulticast {
 
     /**
      * Marca um participante como desativado.
+     *
+     * @param id id do participante que saiu
      */
     private synchronized void removeParticipant(String id) {
         Participant participant = participants.get(id);
@@ -315,6 +334,8 @@ public class CausalMulticast {
     /**
      * Trata mensagens de descoberta, adicionando (HELLO) ou removendo (BYE)
      * participantes.
+     *
+     * @param message mensagem de descoberta recebida
      */
     private synchronized void onDiscoveryMessage(DiscoveryMessage message) {
         Participant other = new Participant(message.getSenderIp(), message.getSenderPort());
@@ -329,6 +350,8 @@ public class CausalMulticast {
     /**
      * Ponto de entrada de toda mensagem (própria ou da rede): atualiza a
      * matriz de relógios, deposita no buffer e dispara entrega e descarte.
+     *
+     * @param message mensagem recebida
      */
     private synchronized void onMessageReceived(WireMessage message) {
         // Impede que novos participantes entrem após a primeira mensagem
@@ -368,6 +391,8 @@ public class CausalMulticast {
     /**
      * Efetiva uma transmissão liberada, entregando localmente se o destino for
      * este processo, ou envia pela rede caso contrário.
+     *
+     * @param transmission transmissão a efetivar
      */
     private synchronized void onTransmissionDispatched(DeferredTransmission transmission) {
         // Se o destino for este processo, processa localmente em vez de usar a rede
@@ -387,41 +412,76 @@ public class CausalMulticast {
      */
     public interface EventListener {
         /**
-         * Chamado para cada destinatário de uma mensagem enviada.
+         * Chamado para cada destinatário de uma mensagem enviada. A implementação
+         * padrão despacha a transmissão imediatamente; sobrescrever permite retê-la.
+         *
+         * @param transmission transmissão pendente para o destinatário
          */
         default void onTransmission(DeferredTransmission transmission) {
             transmission.dispatch();
         }
 
-        /** Mensagem recebida da rede, antes de qualquer processamento. */
+        /**
+         * Mensagem recebida da rede, antes de qualquer processamento.
+         *
+         * @param message mensagem recebida
+         */
         default void onMessageReceived(WireMessage message) {
         }
 
-        /** Mensagem entregue à aplicação na ordem causal. */
+        /**
+         * Mensagem entregue à aplicação na ordem causal.
+         *
+         * @param message mensagem entregue
+         */
         default void onMessageDelivered(WireMessage message) {
         }
 
-        /** Mensagem depositada no buffer. */
+        /**
+         * Mensagem depositada no buffer.
+         *
+         * @param message mensagem depositada
+         */
         default void onMessageDeposited(WireMessage message) {
         }
 
-        /** Mensagem descartada do buffer por ter se tornado estável. */
+        /**
+         * Mensagem descartada do buffer por ter se tornado estável.
+         *
+         * @param message mensagem descartada
+         */
         default void onMessageDiscarded(WireMessage message) {
         }
 
-        /** Novo participante descoberto no grupo. */
+        /**
+         * Novo participante descoberto no grupo.
+         *
+         * @param participant participante que ingressou
+         */
         default void onParticipantJoined(Participant participant) {
         }
 
-        /** Participante saiu do grupo. */
+        /**
+         * Participante saiu do grupo.
+         *
+         * @param participant participante que saiu
+         */
         default void onParticipantLeft(Participant participant) {
         }
 
-        /** A matriz de relógios foi atualizada. */
+        /**
+         * A matriz de relógios foi atualizada.
+         *
+         * @param clock cópia da matriz de relógios atual
+         */
         default void onMatrixClockUpdated(MatrixClock clock) {
         }
 
-        /** O conteúdo do buffer mudou. */
+        /**
+         * O conteúdo do buffer mudou.
+         *
+         * @param buffer cópia das mensagens atualmente no buffer
+         */
         default void onBufferUpdated(List<WireMessage> buffer) {
         }
     }

@@ -7,6 +7,7 @@ import java.net.InetAddress;
 
 /** Envia mensagens a um participante específico por unicast UDP. */
 class MessageSender {
+    /** Cria o emissor. */
     public MessageSender() { }
 
     /**

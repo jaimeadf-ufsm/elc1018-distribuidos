@@ -10,19 +10,39 @@ import java.util.Arrays;
  * anúncios dos demais, notificando o middleware sobre entradas e saídas.
  */
 class DiscoveryService {
+    /** IP do grupo multicast usado na descoberta. */
     private final String multicastIp;
+
+    /** Porta do grupo multicast usado na descoberta. */
     private final int multicastPort;
+
+    /** Participante local anunciado ao grupo. */
     private final Participant self;
 
+    /** Receptor das mensagens de descoberta recebidas. */
     private final EventListener listener;
 
+    /** Indica que os laços de anúncio e escuta estão ativos. */
     private boolean running;
 
-    /** Cria o serviço no grupo multicast padrão ({@code 230.0.0.1:4446}). */
+    /**
+     * Cria o serviço no grupo multicast padrão ({@code 230.0.0.1:4446}).
+     *
+     * @param self          participante local a ser anunciado
+     * @param eventListener receptor das mensagens de descoberta recebidas
+     */
     public DiscoveryService(Participant self, EventListener eventListener) {
         this("230.0.0.1", 4446, self, eventListener);
     }
 
+    /**
+     * Cria o serviço em um grupo multicast específico.
+     *
+     * @param multicastIp   IP do grupo multicast
+     * @param multicastPort porta do grupo multicast
+     * @param self          participante local a ser anunciado
+     * @param listener      receptor das mensagens de descoberta recebidas
+     */
     public DiscoveryService(String multicastIp, int multicastPort, Participant self, EventListener listener) {
         this.multicastIp = multicastIp;
         this.multicastPort = multicastPort;
@@ -45,6 +65,11 @@ class DiscoveryService {
         this.running = false;
     }
 
+    /**
+     * Envia uma mensagem de descoberta ao grupo multicast.
+     *
+     * @param message mensagem a difundir
+     */
     private void broadcast(DiscoveryMessage message) {
         try {
             try (DatagramSocket socket = new DatagramSocket()) {
@@ -66,6 +91,7 @@ class DiscoveryService {
         }
     }
 
+    /** Laço que escuta os anúncios do grupo e os repassa ao receptor. */
     @SuppressWarnings("deprecation")
     private void listenLoop() {
         try (MulticastSocket socket = new MulticastSocket(multicastPort)) {
@@ -92,6 +118,7 @@ class DiscoveryService {
         }
     }
 
+    /** Laço que anuncia {@code HELLO} periodicamente e envia {@code BYE} ao encerrar. */
     private void broadcastLoop() {
         try {
           while (this.running) {
@@ -107,6 +134,11 @@ class DiscoveryService {
 
     /** Receptor das mensagens de descoberta recebidas. */
     public interface EventListener {
+        /**
+         * Chamado a cada mensagem de descoberta recebida.
+         *
+         * @param message mensagem recebida
+         */
         void onDiscoveryMessage(DiscoveryMessage message);
     }
 }
