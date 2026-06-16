@@ -177,7 +177,7 @@ public class CausalMulticast {
     }
 
     /** Remove do buffer as mensagens que já se tornaram estáveis. */
-    public synchronized void attemptDiscard() {
+    private synchronized void attemptDiscard() {
         List<WireMessage> toRemove = new java.util.ArrayList<>();
 
         // Coleta separadamente para não modificar o buffer durante a iteração

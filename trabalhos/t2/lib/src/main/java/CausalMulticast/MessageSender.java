@@ -17,10 +17,10 @@ class MessageSender {
      * @param message     mensagem a enviar
      * @throws IOException em caso de falha na serialização
      */
-    public void send(Participant participant, WireMessage message) throws IOException {
-        byte[] data = Serialization.convertToBytes(message);
-
+    public void send(Participant participant, WireMessage message) {
         try (DatagramSocket socket = new DatagramSocket()) {
+            byte[] data = Serialization.convertToBytes(message);
+
             InetAddress address = InetAddress.getByName(participant.getIp());
 
             DatagramPacket packet = new DatagramPacket(

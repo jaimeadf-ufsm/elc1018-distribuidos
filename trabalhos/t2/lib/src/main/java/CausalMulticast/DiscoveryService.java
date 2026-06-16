@@ -26,7 +26,7 @@ class DiscoveryService {
     private MulticastSocket socket;
 
     /** Indica que os laços de anúncio e escuta estão ativos. */
-    private boolean running;
+    private volatile boolean running;
 
     /**
      * Cria o serviço no grupo multicast padrão ({@code 230.0.0.1:4446}).

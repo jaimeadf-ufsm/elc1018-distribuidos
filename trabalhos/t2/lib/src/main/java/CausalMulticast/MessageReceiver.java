@@ -17,7 +17,7 @@ class MessageReceiver {
     private DatagramSocket socket;
 
     /** Indica que o laço de recepção está ativo. */
-    private boolean running;
+    private volatile boolean running;
 
     /**
      * Cria o receptor.
