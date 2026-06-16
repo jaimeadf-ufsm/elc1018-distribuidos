@@ -80,7 +80,7 @@ public class CausalMulticast {
         listener.onMessageDelivered(msg);
         cliente.deliver(message);
 
-        // Encaminha para cada participante remoto ativo como transmissão diferida
+        // Encaminha para cada participante remoto ativo
         for (Participant participant : participants.values()) {
             if (participant.equals(self) || participant.isDisabled()) {
                 continue;
@@ -143,8 +143,9 @@ public class CausalMulticast {
                 if (isMessageDeliverable(buffered)) {
                     repeat = true;
 
-                    // Incrementa a visão local sobre o remetente somente para mensagens externas;
-                    // a própria mensagem já foi contabilizada em mcsend
+                    // Incrementa a nossa visão sobre o remetente somente para
+                    // mensagens externas, pois mensagens próprias ja são
+                    // contabilizadas no envio.
                     if (!this.self.getId().equals(buffered.getSender())) {
                         mc.increment(self.getId(), buffered.getSender());
                         listener.onMatrixClockUpdated(new MatrixClock(mc));
@@ -174,6 +175,7 @@ public class CausalMulticast {
             }
         }
 
+        // Descarta as mensagens estáveis
         buffer.removeAll(toRemove);
 
         for (WireMessage discarded : toRemove) {
@@ -194,7 +196,7 @@ public class CausalMulticast {
     }
 
     /**
-     * Verifica se a mensagem pode ser entregue à aplicação: deve ser a próxima
+     * Verifica se a mensagem pode ser entregue à aplicação: deve ser a próxima 
      * do remetente e todas as mensagens das quais ela depende causalmente já
      * devem ter sido recebidas.
      *
@@ -204,15 +206,12 @@ public class CausalMulticast {
         String theirId = message.getSender();
         VectorClock theirVc = message.getVC();
 
-        // Garantia de ordenação causal sobre o algoritmo de estabilidade.
-
         // Verifica se é a próxima mensagem do remetente:
         // VC[sender] == MC[self][sender] + 1
 
         // Isso é necessário, porque o algoritmo de estabilidade sempre
         // envia a sequência atual da mensagem no VC[sender] e não
         // a sequência de seu requisito causal.
-        //
         // Exemplo:
         // Na primeira mensagem, o emissor envia VC[sender] = 0,
         // porém seu requisito causal é -1.
@@ -293,8 +292,7 @@ public class CausalMulticast {
     }
 
     /**
-     * Marca um participante como inativo e reavalia o descarte, pois sua saída
-     * pode tornar mensagens estáveis.
+     * Marca um participante como desativado.
      */
     private synchronized void removeParticipant(String id) {
         Participant participant = participants.get(id);
@@ -302,13 +300,14 @@ public class CausalMulticast {
         if (participant != null && !participant.isDisabled()) {
             participant.disable();
 
-            // Remove a linha do participante da matriz para que mensagens pendentes
-            // não fiquem aguardando confirmação de um processo que já saiu
+            // Remove a linha do participante da matriz para que a estabilidade
+            // não dependa mais dele. A coluna, no entanto, é mantida para
+            // preservar a ordenação causal.
             mc.remove(id);
-
             listener.onParticipantLeft(participant);
 
-            // A saída pode ter tornado mensagens estáveis; reavalia o descarte
+            // Reavalia o descarte, pois a saída de um participante pode tornar
+            // mensagens estáveis.
             attemptDiscard();
         }
     }
@@ -332,7 +331,7 @@ public class CausalMulticast {
      * matriz de relógios, deposita no buffer e dispara entrega e descarte.
      */
     private synchronized void onMessageReceived(WireMessage message) {
-        // Impede que novos participantes entrem após o início do tráfego de mensagens
+        // Impede que novos participantes entrem após a primeira mensagem
         this.locked = true;
 
         listener.onMessageReceived(message);
@@ -361,7 +360,7 @@ public class CausalMulticast {
             listener.onMatrixClockUpdated(new MatrixClock(mc));
         }
 
-        // Tenta entregar mensagens em ordem causal e, em seguida, descartar as estáveis
+        // Tenta entregar mensagens em ordem causal e descartar as estáveis
         attemptDelivery();
         attemptDiscard();
     }

@@ -70,4 +70,7 @@ um remetente `S` quando, para todo participante `X`:
 m.VC[S] <= MC[X][S]
 ```
 
-Ou seja, a linha de cada `X` na matriz indica que ele já viu a mensagem. 
+Ou seja, a linha de cada `X` na matriz indica que ele já viu a mensagem. O
+descarte é reavaliado a cada nova mensagem ou quando um participante sai do
+grupo.
+
