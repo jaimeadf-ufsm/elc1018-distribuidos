@@ -62,6 +62,7 @@ public class Client implements ICausalMulticast {
     @Override
     public void deliver(String message) {
         // A entrega à aplicação é apenas sinalizada na tela (ver onMesssageDelivered).
+        System.out.println(Ansi.paint("> " + message, Ansi.DIM));
     }
 
     /** Lê e executa os comandos do usuário até {@code /sair}. */
